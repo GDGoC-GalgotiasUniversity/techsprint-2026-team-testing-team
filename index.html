@@ -1,7 +1,21 @@
-<model-viewer
-  src="./officeman_laptop_2.glb"
-  ios-src="./officeman_laptop_2.usdz"
-  ar ar-modes="scene-viewer quick-look webxr"
-  camera-controls autoplay shadow-intensity="1">
-  <button slot="ar-button">View in AR</button>
-</model-viewer>
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <style>html,body{margin:0;height:100%} model-viewer{width:100%;height:100vh}</style>
+  </head>
+  <body>
+    <model-viewer
+      src="./officeman_laptop_2.glb"
+      ios-src="./officeman_laptop_2.usdc"
+      ar
+      ar-modes="scene-viewer quick-look webxr"
+      camera-controls
+      autoplay
+      shadow-intensity="1">
+      <button slot="ar-button">View in AR</button>
+    </model-viewer>
+  </body>
+</html>
