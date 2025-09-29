@@ -52,6 +52,7 @@
   <canvas id="three-canvas"></canvas>
   <canvas id="debug-canvas"></canvas>
   <div id="info">Point your camera at the QR code</div>
+  <button id="enable-motion" style="position:absolute;top:10px;right:10px;z-index:4;padding:8px 12px;border-radius:8px;border:none;background:#0b5;color:#fff;cursor:pointer;">Enable motion</button>
   <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
   <script type="module">
   import * as THREE from './libs/three.module.js';
@@ -72,6 +73,8 @@
   // Device orientation (for AR-like rotation)
   let deviceYawRad = 0; // radians
   let orientationEnabled = false;
+  let screenAngleRad = 0;
+  let lastQrX = 0, lastQrY = 0; // remember last QR center for reprojection while pinned
 
     // Camera setup
     function startCamera() {
@@ -119,7 +122,15 @@
 
     window.addEventListener('resize', resizeElements);
     startCamera();
-    // Enable device orientation on first user interaction (required on iOS)
+    // Normalize screen orientation angle (handles mobile rotation)
+    const updateScreenAngle = () => {
+      const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+      screenAngleRad = (ang || 0) * Math.PI / 180;
+    };
+    updateScreenAngle();
+    window.addEventListener('orientationchange', updateScreenAngle);
+
+    // Enable device orientation when user taps the button (iOS permission)
     const enableOrientation = async () => {
       if (orientationEnabled) return;
       try {
@@ -127,14 +138,21 @@
           const resp = await DeviceOrientationEvent.requestPermission();
           if (resp !== 'granted') return;
         }
-        window.addEventListener('deviceorientation', e => {
-          const alpha = (e.alpha ?? 0); // 0..360
-          deviceYawRad = alpha * Math.PI / 180;
-        }, { passive: true });
+        const handler = e => {
+          const alpha = (e && typeof e.alpha === 'number') ? e.alpha : 0; // degrees
+          // Subtract screen rotation so yaw feels consistent with phone turning
+          const yawDeg = (alpha - (screen.orientation && screen.orientation.angle ? screen.orientation.angle : (window.orientation || 0)) + 360) % 360;
+          deviceYawRad = yawDeg * Math.PI / 180;
+        };
+        window.addEventListener('deviceorientationabsolute', handler, { passive: true });
+        window.addEventListener('deviceorientation', handler, { passive: true });
         orientationEnabled = true;
+        const btn = document.getElementById('enable-motion');
+        if (btn) btn.style.display = 'none';
       } catch {}
     };
-    document.addEventListener('click', enableOrientation, { once: true });
+    const btn = document.getElementById('enable-motion');
+    if (btn) btn.addEventListener('click', enableOrientation, { once: true });
 
     // Three.js setup
     function setupThree() {
@@ -240,11 +258,21 @@
           placedBox.getCenter(placedCenter);
           model.position.set(qrCenterX - placedCenter.x, qrCenterY - placedCenter.y, 0);
           model.visible = true;
+          lastQrX = qrCenterX; lastQrY = qrCenterY;
         }
         else if (modelLoaded && model) {
           // keep visible briefly after loss to avoid flicker
           const age = performance.now() - lastDetectionTs;
           model.visible = age < PIN_TIMEOUT_MS;
+          // If still visible and orientation enabled, keep rotating and recentering around last QR
+          if (model.visible && orientationEnabled) {
+            model.rotation.set(Math.PI / 2, 0, deviceYawRad);
+            model.updateWorldMatrix(true, true);
+            const box = new THREE.Box3().setFromObject(model);
+            const c = new THREE.Vector3();
+            box.getCenter(c);
+            model.position.set(lastQrX - c.x, lastQrY - c.y, 0);
+          }
         }
       }
       if (animationPlaying && mixer) {
