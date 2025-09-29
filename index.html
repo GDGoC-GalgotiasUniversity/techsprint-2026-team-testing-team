@@ -53,89 +53,40 @@
             background: rgba(0, 255, 0, 0.1);
         }
 
-        /* Dynamic mobile camera zoom - will be overridden by JavaScript */
+        /* Clean video and canvas positioning without viewport interference */
         video {
-            object-fit: cover !important;
-            transform-origin: center center !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
             width: 100% !important;
             height: 100% !important;
+            object-fit: cover !important;
+            z-index: -1 !important;
         }
 
         canvas {
-            transform-origin: center center !important;
-        }
-
-        /* Fallback zoom levels for different screen sizes */
-        @media (max-width: 320px) {
-            video {
-                transform: scale(0.35) !important;
-            }
-
-            canvas {
-                transform: scale(0.4) !important;
-            }
-        }
-
-        @media (min-width: 321px) and (max-width: 375px) {
-            video {
-                transform: scale(0.25) !important;
-            }
-
-            canvas {
-                transform: scale(0.3) !important;
-            }
-        }
-
-        @media (min-width: 376px) and (max-width: 414px) {
-            video {
-                transform: scale(0.2) !important;
-            }
-
-            canvas {
-                transform: scale(0.25) !important;
-            }
-        }
-
-        @media (min-width: 415px) and (max-width: 768px) {
-            video {
-                transform: scale(0.15) !important;
-            }
-
-            canvas {
-                transform: scale(0.2) !important;
-            }
-        }
-
-        @media (min-width: 769px) {
-            video {
-                transform: scale(0.4) !important;
-            }
-
-            canvas {
-                transform: scale(0.5) !important;
-            }
-        }
-
-        /* Force full viewport usage */
-        a-scene {
-            width: 100vw !important;
-            height: 100vh !important;
-        }
-
-        /* Wide camera view settings */
-        video {
-            object-fit: cover !important;
-            transform: scale(0.9) !important;
-            /* Zoom out slightly */
-        }
-
-        a-scene {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
             width: 100% !important;
             height: 100% !important;
+            object-fit: cover !important;
         }
 
-        canvas {
-            object-fit: cover !important;
+        a-scene {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            overflow: hidden !important;
+        }
+
+        /* Mobile viewport optimization */
+        @media (max-width: 768px) {
+            body {
+                overflow: hidden !important;
+            }
         }
     </style>
 </head>
@@ -306,14 +257,15 @@
             setTimeout(() => {
                 videoElement = document.querySelector('video');
                 if (videoElement) {
-                    // Set optimized video attributes with device-specific zoom
+                    // Set optimized video attributes without viewport interference
                     videoElement.setAttribute('width', '640');
                     videoElement.setAttribute('height', '480');
                     videoElement.style.objectFit = 'cover'; // Prevent stretching
-                    videoElement.style.transform = `scale(${deviceZoomLevel})`; // Device-specific zoom
-                    videoElement.style.transformOrigin = 'center center'; // Scale from center
 
-                    console.log(`Applied zoom level: ${deviceZoomLevel} for device: ${navigator.userAgent.substring(0, 50)}...`);
+                    // Apply device-specific camera settings via AR.js instead of CSS transforms
+                    updateARCameraSettings(deviceZoomLevel);
+
+                    console.log(`Applied camera settings for device: ${navigator.userAgent.substring(0, 50)}...`);
 
                     canvas = document.createElement('canvas');
                     context = canvas.getContext('2d', { willReadFrequently: true });
@@ -328,6 +280,30 @@
                     detectQR();
                 }
             }, 3000);
+        }
+
+        // Update AR camera settings without interfering with viewport
+        function updateARCameraSettings(zoomLevel) {
+            const scene = document.querySelector('a-scene');
+            const camera = document.querySelector('#ar-camera');
+
+            if (camera) {
+                // Calculate appropriate FOV based on zoom level (inverse relationship)
+                const baseFOV = 80; // Standard FOV
+                const adjustedFOV = baseFOV + (zoomLevel * 200); // Higher zoom = wider FOV
+
+                // Update camera FOV instead of using CSS transforms
+                camera.setAttribute('camera', `fov: ${adjustedFOV}; near: 0.05; far: 2000`);
+
+                console.log(`Updated camera FOV to ${adjustedFOV}° for zoom level ${zoomLevel}`);
+            }
+
+            // Update AR.js source settings for better tracking
+            if (scene) {
+                const currentArjs = scene.getAttribute('arjs');
+                const updatedArjs = currentArjs.replace(/sourceWidth: \d+/, `sourceWidth: ${Math.floor(640 * (1 + zoomLevel))}`);
+                scene.setAttribute('arjs', updatedArjs);
+            }
         }
 
         // Request wide-angle camera stream (simplified constraints)
