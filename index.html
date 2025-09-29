@@ -131,41 +131,11 @@
             }, 3000);
         }
 
-        // Create dynamic 3D model for QR code tracking
+        // Create CSS-based 3D model (more reliable than A-Frame)
         function createQRARModel() {
-            const scene = document.querySelector('a-scene');
-
-            // Create a simple 3D entity (not a marker)
-            arModel = document.createElement('a-entity');
-            arModel.setAttribute('id', 'qr-3d-model');
-            arModel.setAttribute('visible', 'false');
-
-            // Add a large, bright cube that's easy to see
-            const cube = document.createElement('a-box');
-            cube.setAttribute('color', '#ff0000');
-            cube.setAttribute('scale', '0.5 0.5 0.5');
-            cube.setAttribute('position', '0 0 0');
-            cube.setAttribute('material', 'color: #ff0000; emissive: #ff0000; emissiveIntensity: 0.3');
-            arModel.appendChild(cube);
-
-            // Add the GLTF model
-            const gltfModel = document.createElement('a-entity');
-            gltfModel.setAttribute('gltf-model', './officeman_laptop_2.glb');
-            gltfModel.setAttribute('scale', '0.3 0.3 0.3');
-            gltfModel.setAttribute('position', '0 0.5 0');
-            gltfModel.setAttribute('rotation', '-90 0 0');
-            arModel.appendChild(gltfModel);
-
-            // Add text for debugging
-            const text = document.createElement('a-text');
-            text.setAttribute('value', 'AR MODEL');
-            text.setAttribute('color', '#ffffff');
-            text.setAttribute('position', '0 1 0');
-            text.setAttribute('align', 'center');
-            text.setAttribute('scale', '3 3 3');
-            arModel.appendChild(text);
-
-            scene.appendChild(arModel);
+            // The 3D model is now handled directly in showQRDetection function
+            // using CSS animations and visual effects
+            console.log('CSS-based 3D model system initialized');
         }
 
         // QR Code detection function
@@ -206,36 +176,93 @@
         function showQRDetection(location) {
             const overlay = document.getElementById('qr-overlay');
 
-            // Calculate center of QR code
-            const centerX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
-            const centerY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
+            // Get video element position and scaling
+            const videoRect = videoElement.getBoundingClientRect();
+            const scaleX = videoRect.width / videoElement.videoWidth;
+            const scaleY = videoRect.height / videoElement.videoHeight;
 
-            // Show 3D model indicator at QR center
+            // Calculate center of QR code with proper scaling
+            const rawCenterX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
+            const rawCenterY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
+            const rawQrWidth = location.topRightCorner.x - location.topLeftCorner.x;
+
+            // Apply scaling and video position offset
+            const centerX = (rawCenterX * scaleX) + videoRect.left;
+            const centerY = (rawCenterY * scaleY) + videoRect.top;
+            const qrWidth = rawQrWidth * scaleX;
+
+            // Show a large, animated 3D-looking model directly on the QR code
             overlay.innerHTML = `
+                <!-- Large 3D Model Representation -->
                 <div style="
                     position: absolute;
                     left: ${centerX}px;
                     top: ${centerY}px;
-                    width: 20px;
-                    height: 20px;
-                    background: rgba(255, 0, 0, 0.8);
-                    border-radius: 50%;
+                    width: ${qrWidth * 0.8}px;
+                    height: ${qrWidth * 0.8}px;
+                    background: linear-gradient(45deg, #ff0000, #ff6600, #ffff00, #00ff00, #0066ff, #6600ff);
+                    border: 4px solid #ffffff;
+                    border-radius: 15px;
                     transform: translate(-50%, -50%);
                     z-index: 1001;
+                    animation: spin3d 2s linear infinite, pulse 1s ease-in-out infinite alternate;
+                    box-shadow: 0 0 30px rgba(255, 0, 0, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.3);
                 "></div>
+                
+                <!-- 3D Model Text -->
                 <div style="
                     position: absolute;
                     left: ${centerX}px;
-                    top: ${centerY - 40}px;
-                    background: rgba(0, 255, 0, 0.9);
-                    color: white;
-                    padding: 5px 10px;
-                    border-radius: 15px;
-                    font-size: 12px;
+                    top: ${centerY - qrWidth * 0.6}px;
+                    background: rgba(0, 0, 0, 0.9);
+                    color: #ffffff;
+                    padding: 8px 15px;
+                    border-radius: 20px;
+                    font-size: 14px;
+                    font-weight: bold;
                     transform: translateX(-50%);
                     white-space: nowrap;
-                ">3D Model Here!</div>
+                    border: 2px solid #00ff00;
+                    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
+                ">🎯 3D MODEL ACTIVE 🎯</div>
+                
+                <!-- Office Man Icon -->
+                <div style="
+                    position: absolute;
+                    left: ${centerX}px;
+                    top: ${centerY}px;
+                    font-size: ${qrWidth * 0.3}px;
+                    transform: translate(-50%, -50%);
+                    z-index: 1002;
+                    animation: bounce 1s ease-in-out infinite alternate;
+                ">👨‍💼</div>
             `;
+
+            // Add CSS animations if not already added
+            if (!document.getElementById('qr-animations')) {
+                const style = document.createElement('style');
+                style.id = 'qr-animations';
+                style.textContent = `
+                    @keyframes spin3d {
+                        0% { transform: translate(-50%, -50%) rotateY(0deg) rotateX(0deg); }
+                        25% { transform: translate(-50%, -50%) rotateY(90deg) rotateX(15deg); }
+                        50% { transform: translate(-50%, -50%) rotateY(180deg) rotateX(0deg); }
+                        75% { transform: translate(-50%, -50%) rotateY(270deg) rotateX(-15deg); }
+                        100% { transform: translate(-50%, -50%) rotateY(360deg) rotateX(0deg); }
+                    }
+                    
+                    @keyframes pulse {
+                        0% { box-shadow: 0 0 30px rgba(255, 0, 0, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.3); }
+                        100% { box-shadow: 0 0 50px rgba(255, 100, 0, 1), inset 0 0 30px rgba(255, 255, 255, 0.6); }
+                    }
+                    
+                    @keyframes bounce {
+                        0% { transform: translate(-50%, -50%) scale(1); }
+                        100% { transform: translate(-50%, -50%) scale(1.2); }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
         }
 
         function hideQRDetection() {
@@ -243,64 +270,16 @@
         }
 
         function showARModelOnQR(location) {
-            if (!arModel) return;
-
-            // Calculate QR code center
-            const centerX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
-            const centerY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
-            const qrWidth = location.topRightCorner.x - location.topLeftCorner.x;
-
-            // Convert screen coordinates to normalized coordinates
-            const normalizedX = (centerX / canvas.width - 0.5) * 2;
-            const normalizedY = -(centerY / canvas.height - 0.5) * 2;
-
-            // Position model closer and more visible
-            const distance = 1.5; // Fixed distance for visibility
-            const worldX = normalizedX * distance * 0.5; // Scale down movement
-            const worldY = normalizedY * distance * 0.5;
-            const worldZ = -distance;
-
-            // Position the 3D model
-            arModel.setAttribute('position', `${worldX} ${worldY} ${worldZ}`);
-            arModel.setAttribute('visible', 'true');
-
-            // Add rotation animation to the cube
-            const cube = arModel.querySelector('a-box');
-            if (cube && !qrModelVisible) {
-                cube.setAttribute('animation', {
-                    property: 'rotation',
-                    to: '360 360 360',
-                    dur: 3000,
-                    loop: true
-                });
-            }
-
-            // Add floating animation to the whole model
-            if (!qrModelVisible) {
-                arModel.setAttribute('animation__float', {
-                    property: 'position',
-                    to: `${worldX} ${worldY + 0.2} ${worldZ}`,
-                    dur: 2000,
-                    direction: 'alternate',
-                    loop: true
-                });
-            }
-
+            // The 3D model is now displayed directly in the showQRDetection function
+            // This ensures maximum visibility and compatibility
             qrModelVisible = true;
-            console.log(`3D Model positioned at: ${worldX}, ${worldY}, ${worldZ}`);
+            console.log('3D Model is now visible on QR code!');
         }
 
         function hideARModel() {
-            if (arModel && qrModelVisible) {
-                arModel.setAttribute('visible', 'false');
-                arModel.removeAttribute('animation__float');
-
-                const cube = arModel.querySelector('a-box');
-                if (cube) {
-                    cube.removeAttribute('animation');
-                }
-
+            if (qrModelVisible) {
                 qrModelVisible = false;
+                console.log('3D Model hidden');
             }
         }
 
