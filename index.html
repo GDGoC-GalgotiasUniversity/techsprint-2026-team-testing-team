@@ -147,8 +147,10 @@
 
         <!-- Pattern marker removed due to file issues -->
 
-        <!-- Camera with much wider field of view for mobile -->
-        <a-entity camera="fov: 120; zoom: 0.5; near: 0.1; far: 1000"></a-entity>
+        <!-- Camera with much wider field of view and device orientation -->
+        <a-entity camera="fov: 120; zoom: 0.5; near: 0.1; far: 1000"
+            look-controls="enabled: true; magicWindowTrackingEnabled: true; touchEnabled: false"
+            wasd-controls="enabled: false"></a-entity>
     </a-scene>
 
     <script>
@@ -162,6 +164,7 @@
         let animationUpdateLoop = null; // Animation update loop
         let gyroscopeActive = false; // Track gyroscope status
         let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 }; // Device orientation data
+        let cameraEntity = null; // Reference to camera entity
 
         // Initialize QR detection with high-quality camera
         function initQRDetection() {
@@ -182,6 +185,9 @@
 
                     // Create AR model for QR detection
                     createQRARModel();
+
+                    // Get camera entity reference
+                    cameraEntity = document.querySelector('[camera]');
 
                     qrDetectionActive = true;
                     detectQR();
@@ -469,30 +475,44 @@
 
         // Handle device orientation changes
         function handleDeviceOrientation(event) {
-            if (!arModel || !qrModelVisible) return;
-
             // Get orientation values
             deviceOrientation.alpha = event.alpha || 0; // Z axis (compass)
             deviceOrientation.beta = event.beta || 0;   // X axis (front-back tilt)
             deviceOrientation.gamma = event.gamma || 0; // Y axis (left-right tilt)
 
-            // Apply rotation to the AR model
-            updateModelRotation();
+            // Update both camera and model orientation
+            updateCameraOrientation();
+            if (arModel && qrModelVisible) {
+                updateModelRotation();
+            }
         }
 
-        // Update model rotation based on device orientation
+        // Update camera orientation based on device rotation
+        function updateCameraOrientation() {
+            if (!cameraEntity) return;
+
+            // Convert device orientation to camera rotation
+            // This makes the AR world rotate with the device
+            const cameraRotationX = -deviceOrientation.beta * 0.5; // Invert for natural feel
+            const cameraRotationY = deviceOrientation.alpha * 0.3;
+            const cameraRotationZ = deviceOrientation.gamma * 0.3;
+
+            // Apply rotation to camera for world tracking
+            cameraEntity.setAttribute('rotation', `${cameraRotationX} ${cameraRotationY} ${cameraRotationZ}`);
+        }
+
+        // Update model rotation to stay world-locked
         function updateModelRotation() {
             if (!arModel || !qrModelVisible) return;
 
-            // Convert device orientation to model rotation for top-down view
-            // Keep base -90° X rotation for top view, add device rotations
-            const baseRotationX = -90; // Base top-down view
-            const rotationX = baseRotationX + (deviceOrientation.beta * 0.2);  // Slight tilt with device
-            const rotationY = deviceOrientation.alpha * 0.3; // Compass rotation
-            const rotationZ = deviceOrientation.gamma * 0.2; // Side tilt rotation
+            // Keep model stable in world coordinates by counter-rotating against camera
+            // This makes the model appear fixed in space when you rotate the phone
+            const modelRotationX = 0; // Keep model level in world
+            const modelRotationY = -deviceOrientation.alpha * 0.3; // Counter-rotate against camera Y
+            const modelRotationZ = 0; // Keep model upright in world
 
-            // Apply rotation to the model (maintaining top-down perspective)
-            arModel.setAttribute('rotation', `${rotationX} ${rotationY} ${rotationZ}`);
+            // Apply world-locked rotation
+            arModel.setAttribute('rotation', `${modelRotationX} ${modelRotationY} ${modelRotationZ}`);
         }
 
         // Fallback rotation if gyroscope is not available
@@ -543,6 +563,9 @@
                 const worldX = normalizedX * 0.4;
                 const worldY = normalizedY * 0.4;
                 const worldZ = -distance;
+
+                // Store world position for tracking
+                arModel.worldPosition = { x: worldX, y: worldY, z: worldZ };
 
                 // Position and show the 3D model (bottom sits on QR)
                 arModel.setAttribute('position', `${worldX} ${worldY} ${worldZ}`);
