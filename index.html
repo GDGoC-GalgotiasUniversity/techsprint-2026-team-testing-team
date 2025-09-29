@@ -5,45 +5,97 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar-nft.js"></script>
     <style>
         html,
         body {
             margin: 0;
-            height: 100%
+            height: 100%;
+            font-family: Arial, sans-serif;
         }
 
-        model-viewer {
+        #arjs-video {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 100vh
+            height: 100%;
+            z-index: -1;
+        }
+
+        .ar-scene {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
         }
     </style>
 </head>
 
 <body>
-    <model-viewer 
-        src="./officeman_laptop_2.glb" 
-        ios-src="./officeman_laptop_2.usdz" 
-        ar
-        ar-modes="scene-viewer quick-look webxr" 
-        camera-controls 
-        autoplay 
-        shadow-intensity="1"
-        scale="0.05 0.05 0.05"
-        auto-rotate>
-    </model-viewer>
+    <div class="loading" id="loading">
+        <p>Point your camera at the QR code</p>
+        <p>Loading AR...</p>
+    </div>
+
+    <a-scene class="ar-scene" vr-mode-ui="enabled: false"
+        arjs="sourceType: webcam; debugUIEnabled: false; detectionMode: mono_and_matrix; matrixCodeType: 3x3;"
+        renderer="logarithmicDepthBuffer: true;" embedded gesture-detector>
+
+        <a-assets>
+            <a-asset-item id="laptop-model" src="./officeman_laptop_2.glb"></a-asset-item>
+        </a-assets>
+
+        <!-- QR Code Marker - this will track any QR code -->
+        <a-marker type="barcode" value="0" smooth="true" smoothCount="10" smoothTolerance="0.01" smoothThreshold="5"
+            gesture-handler>
+
+            <!-- 3D Model positioned relative to QR code -->
+            <a-gltf-model src="#laptop-model" position="0 0.1 0" scale="0.3 0.3 0.3" rotation="0 0 0" animation-mixer>
+            </a-gltf-model>
+
+        </a-marker>
+
+        <a-entity camera></a-entity>
+    </a-scene>
 
     <script>
-        // Auto-launch AR when page loads on mobile devices
+        // Hide loading message when AR starts
         window.addEventListener('load', () => {
-            const modelViewer = document.querySelector('model-viewer');
-            
-            // Check if device supports AR
-            if (modelViewer && modelViewer.canActivateAR) {
-                // Small delay to ensure model is loaded
-                setTimeout(() => {
-                    modelViewer.activateAR();
-                }, 1000);
+            setTimeout(() => {
+                const loading = document.getElementById('loading');
+                if (loading) {
+                    loading.style.display = 'none';
+                }
+            }, 3000);
+        });
+
+        // Handle marker detection
+        document.querySelector('a-marker').addEventListener('markerFound', () => {
+            console.log('QR Code detected!');
+            const loading = document.getElementById('loading');
+            if (loading) {
+                loading.style.display = 'none';
             }
+        });
+
+        document.querySelector('a-marker').addEventListener('markerLost', () => {
+            console.log('QR Code lost');
         });
     </script>
 </body>
