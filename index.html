@@ -53,29 +53,42 @@
             background: rgba(0, 255, 0, 0.1);
         }
 
-        /* Aggressive mobile camera zoom fix */
+        /* Dynamic mobile camera zoom - will be overridden by JavaScript */
         video {
             object-fit: cover !important;
-            transform: scale(0.3) !important;
             transform-origin: center center !important;
             width: 100% !important;
             height: 100% !important;
         }
 
         canvas {
-            transform: scale(0.4) !important;
             transform-origin: center center !important;
         }
 
-        /* Maximum zoom out for mobile devices */
-        @media (max-width: 768px) {
-            video {
-                transform: scale(0.2) !important;
-            }
+        /* Fallback zoom levels for different screen sizes */
+        @media (max-width: 320px) {
+            video { transform: scale(0.35) !important; }
+            canvas { transform: scale(0.4) !important; }
+        }
 
-            canvas {
-                transform: scale(0.25) !important;
-            }
+        @media (min-width: 321px) and (max-width: 375px) {
+            video { transform: scale(0.25) !important; }
+            canvas { transform: scale(0.3) !important; }
+        }
+
+        @media (min-width: 376px) and (max-width: 414px) {
+            video { transform: scale(0.2) !important; }
+            canvas { transform: scale(0.25) !important; }
+        }
+
+        @media (min-width: 415px) and (max-width: 768px) {
+            video { transform: scale(0.15) !important; }
+            canvas { transform: scale(0.2) !important; }
+        }
+
+        @media (min-width: 769px) {
+            video { transform: scale(0.4) !important; }
+            canvas { transform: scale(0.5) !important; }
         }
 
         /* Force full viewport usage */
@@ -174,21 +187,99 @@
         let initialOrientation = { alpha: 0, beta: 0, gamma: 0 }; // Initial orientation when model is placed
         let cameraEntity = null; // Reference to camera entity
         let worldTrackingActive = false; // Track if world tracking is active
+        let deviceZoomLevel = 0.3; // Dynamic zoom level based on device
 
-        // Initialize QR detection with high-quality camera
+        // Detect device type and set appropriate zoom level
+        function detectDeviceAndSetZoom() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const screenWidth = window.screen.width;
+            const screenHeight = window.screen.height;
+            const pixelRatio = window.devicePixelRatio || 1;
+            
+            console.log(`Device info: ${screenWidth}x${screenHeight}, ratio: ${pixelRatio}, UA: ${userAgent.substring(0, 50)}...`);
+            
+            // iPhone specific adjustments
+            if (userAgent.includes('iphone')) {
+                if (screenWidth >= 414) { // iPhone Plus/Pro Max models
+                    deviceZoomLevel = 0.15; // Very zoomed out
+                } else if (screenWidth >= 375) { // iPhone 6/7/8/X/11/12/13 standard
+                    deviceZoomLevel = 0.2; // Moderately zoomed out
+                } else { // iPhone SE and older
+                    deviceZoomLevel = 0.25; // Less zoomed out
+                }
+            }
+            // iPad adjustments
+            else if (userAgent.includes('ipad')) {
+                deviceZoomLevel = 0.4; // iPads need less zoom out
+            }
+            // Samsung Galaxy adjustments
+            else if (userAgent.includes('samsung') || userAgent.includes('galaxy')) {
+                if (screenWidth >= 480) { // Large Samsung phones
+                    deviceZoomLevel = 0.1; // Extremely zoomed out
+                } else if (screenWidth >= 360) { // Standard Samsung phones
+                    deviceZoomLevel = 0.15; // Very zoomed out
+                } else { // Smaller Samsung phones
+                    deviceZoomLevel = 0.2; // Moderately zoomed out
+                }
+            }
+            // Google Pixel adjustments
+            else if (userAgent.includes('pixel')) {
+                deviceZoomLevel = 0.15; // Pixels tend to zoom in a lot
+            }
+            // OnePlus adjustments
+            else if (userAgent.includes('oneplus')) {
+                deviceZoomLevel = 0.12; // OnePlus phones zoom in significantly
+            }
+            // Xiaomi adjustments
+            else if (userAgent.includes('xiaomi') || userAgent.includes('mi ')) {
+                deviceZoomLevel = 0.18; // Xiaomi phones need aggressive zoom out
+            }
+            // Huawei adjustments
+            else if (userAgent.includes('huawei')) {
+                deviceZoomLevel = 0.16; // Huawei phones zoom in quite a bit
+            }
+            // High pixel density devices (general)
+            else if (pixelRatio >= 3) {
+                deviceZoomLevel = 0.1; // Very high DPI devices need extreme zoom out
+            }
+            else if (pixelRatio >= 2) {
+                deviceZoomLevel = 0.2; // High DPI devices need significant zoom out
+            }
+            // Large screen devices
+            else if (screenWidth >= 480) {
+                deviceZoomLevel = 0.15; // Large screens often zoom in too much
+            }
+            // Small screen devices
+            else if (screenWidth <= 320) {
+                deviceZoomLevel = 0.35; // Small screens need less zoom out
+            }
+            // Default for unknown devices
+            else {
+                deviceZoomLevel = 0.25; // Conservative default
+            }
+            
+            console.log(`Selected zoom level: ${deviceZoomLevel}`);
+        }
+
+        // Initialize QR detection with device-specific camera settings
         function initQRDetection() {
-            // Request high-quality camera first
+            // Detect device and set appropriate zoom level
+            detectDeviceAndSetZoom();
+            
+            // Request wide-angle camera first
             requestHighQualityCamera();
 
             setTimeout(() => {
                 videoElement = document.querySelector('video');
                 if (videoElement) {
-                    // Set optimized video attributes with wide view
+                    // Set optimized video attributes with device-specific zoom
                     videoElement.setAttribute('width', '640');
                     videoElement.setAttribute('height', '480');
                     videoElement.style.objectFit = 'cover'; // Prevent stretching
-                    videoElement.style.transform = 'scale(0.3)'; // Extremely wide view for mobile QR scanning
+                    videoElement.style.transform = `scale(${deviceZoomLevel})`; // Device-specific zoom
                     videoElement.style.transformOrigin = 'center center'; // Scale from center
+                    
+                    console.log(`Applied zoom level: ${deviceZoomLevel} for device: ${navigator.userAgent.substring(0, 50)}...`);
 
                     canvas = document.createElement('canvas');
                     context = canvas.getContext('2d', { willReadFrequently: true });
