@@ -20,10 +20,32 @@
 </head>
 
 <body>
-    <model-viewer src="./officeman_laptop_2.glb" ios-src="./officeman_laptop_2.usdz" ar
-        ar-modes="scene-viewer quick-look webxr" camera-controls autoplay shadow-intensity="1">
-        <button slot="ar-button">View in AR</button>
+    <model-viewer 
+        src="./officeman_laptop_2.glb" 
+        ios-src="./officeman_laptop_2.usdz" 
+        ar
+        ar-modes="scene-viewer quick-look webxr" 
+        camera-controls 
+        autoplay 
+        shadow-intensity="1"
+        scale="0.05 0.05 0.05"
+        auto-rotate>
     </model-viewer>
+
+    <script>
+        // Auto-launch AR when page loads on mobile devices
+        window.addEventListener('load', () => {
+            const modelViewer = document.querySelector('model-viewer');
+            
+            // Check if device supports AR
+            if (modelViewer && modelViewer.canActivateAR) {
+                // Small delay to ensure model is loaded
+                setTimeout(() => {
+                    modelViewer.activateAR();
+                }, 1000);
+            }
+        });
+    </script>
 </body>
 
 </html>
