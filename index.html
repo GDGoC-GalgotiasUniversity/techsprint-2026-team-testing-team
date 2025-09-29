@@ -58,27 +58,31 @@
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
+            width: 100vw !important;
+            height: 100vh !important;
             object-fit: cover !important;
             z-index: -1 !important;
+            min-width: 100% !important;
+            min-height: 100% !important;
         }
 
         canvas {
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
+            width: 100vw !important;
+            height: 100vh !important;
             object-fit: cover !important;
+            min-width: 100% !important;
+            min-height: 100% !important;
         }
 
         a-scene {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
+            width: 100vw !important;
+            height: 100vh !important;
             overflow: hidden !important;
         }
 
@@ -114,7 +118,7 @@
     <div id="qr-overlay"></div>
 
     <a-scene vr-mode-ui="enabled: false;" renderer="logarithmicDepthBuffer: true;" embedded
-        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 320; sourceHeight: 240; displayWidth: 320; displayHeight: 240;">
+        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 1280; sourceHeight: 960; displayWidth: 1280; displayHeight: 960;">
 
         <!-- Multiple barcode markers for different QR codes -->
         <a-marker type="barcode" value="0">
@@ -257,15 +261,19 @@
             setTimeout(() => {
                 videoElement = document.querySelector('video');
                 if (videoElement) {
-                    // Set optimized video attributes without viewport interference
-                    videoElement.setAttribute('width', '640');
-                    videoElement.setAttribute('height', '480');
-                    videoElement.style.objectFit = 'cover'; // Prevent stretching
+                    // Force full screen video coverage
+                    videoElement.setAttribute('width', '1280');
+                    videoElement.setAttribute('height', '960');
+                    videoElement.style.objectFit = 'cover';
+                    videoElement.style.width = '100vw';
+                    videoElement.style.height = '100vh';
+                    videoElement.style.minWidth = '100%';
+                    videoElement.style.minHeight = '100%';
 
                     // Apply device-specific camera settings via AR.js instead of CSS transforms
                     updateARCameraSettings(deviceZoomLevel);
 
-                    console.log(`Applied camera settings for device: ${navigator.userAgent.substring(0, 50)}...`);
+                    console.log(`Applied full screen camera settings for device: ${navigator.userAgent.substring(0, 50)}...`);
 
                     canvas = document.createElement('canvas');
                     context = canvas.getContext('2d', { willReadFrequently: true });
@@ -311,10 +319,10 @@
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 const constraints = {
                     video: {
-                        width: { ideal: 640, min: 480 },
-                        height: { ideal: 480, min: 360 },
+                        width: { ideal: 1280, min: 640 },
+                        height: { ideal: 960, min: 480 },
                         facingMode: { ideal: 'environment' }, // Back camera
-                        frameRate: { ideal: 20, min: 10 },
+                        frameRate: { ideal: 30, min: 15 },
                         aspectRatio: { ideal: 4 / 3 }
                     }
                 };
