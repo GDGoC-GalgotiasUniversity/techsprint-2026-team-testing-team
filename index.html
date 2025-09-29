@@ -53,6 +53,29 @@
             background: rgba(0, 255, 0, 0.1);
         }
 
+        /* Mobile camera zoom fix */
+        video {
+            object-fit: cover !important;
+            transform: scale(0.6) !important;
+            transform-origin: center !important;
+        }
+
+        canvas {
+            transform: scale(0.7) !important;
+            transform-origin: center !important;
+        }
+
+        /* Extra mobile zoom out */
+        @media (max-width: 768px) {
+            video {
+                transform: scale(0.4) !important;
+            }
+
+            canvas {
+                transform: scale(0.5) !important;
+            }
+        }
+
         /* Wide camera view settings */
         video {
             object-fit: cover !important;
@@ -94,7 +117,7 @@
     <div id="qr-overlay"></div>
 
     <a-scene vr-mode-ui="enabled: false;" renderer="logarithmicDepthBuffer: true;" embedded
-        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 640; sourceHeight: 480; displayWidth: 640; displayHeight: 480;">
+        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 480; sourceHeight: 360; displayWidth: 480; displayHeight: 360;">
 
         <!-- Multiple barcode markers for different QR codes -->
         <a-marker type="barcode" value="0">
@@ -124,8 +147,8 @@
 
         <!-- Pattern marker removed due to file issues -->
 
-        <!-- Camera with wider field of view -->
-        <a-entity camera="fov: 80; zoom: 0.8"></a-entity>
+        <!-- Camera with much wider field of view for mobile -->
+        <a-entity camera="fov: 120; zoom: 0.5; near: 0.1; far: 1000"></a-entity>
     </a-scene>
 
     <script>
@@ -152,7 +175,7 @@
                     videoElement.setAttribute('width', '640');
                     videoElement.setAttribute('height', '480');
                     videoElement.style.objectFit = 'cover'; // Prevent stretching
-                    videoElement.style.transform = 'scaleX(1.2)'; // Slightly wider view
+                    videoElement.style.transform = 'scale(0.5)'; // Much wider view for mobile QR scanning
 
                     canvas = document.createElement('canvas');
                     context = canvas.getContext('2d', { willReadFrequently: true });
