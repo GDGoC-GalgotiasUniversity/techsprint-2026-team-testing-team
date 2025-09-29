@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Working AR Markers</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .marker-container { text-align: center; margin: 20px 0; padding: 20px; border: 2px solid #000; }
+        .download-btn { padding: 10px 20px; margin: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Working AR Markers</h1>
+    
+    <div class="marker-container">
+        <h3>Method 1: Use Hiro Marker (Recommended)</h3>
+        <p>Download the official Hiro marker - this will definitely work:</p>
+        <a href="https://github.com/AR-js-org/AR.js/raw/master/data/images/hiro.png" target="_blank">
+            <button class="download-btn">Download Hiro Marker</button>
+        </a>
+        <p>Print this marker and point your camera at it to see the 3D model.</p>
+    </div>
+
+    <div class="marker-container">
+        <h3>Method 2: Barcode Markers</h3>
+        <p>These simple barcode patterns work with AR.js:</p>
+        <div id="barcodes"></div>
+        <button class="download-btn" onclick="generateBarcodes()">Generate Barcode Markers</button>
+    </div>
+
+    <script>
+        function generateBarcodes() {
+            const container = document.getElementById('barcodes');
+            container.innerHTML = '';
+            
+            for (let i = 0; i < 3; i++) {
+                const barcodeDiv = document.createElement('div');
+                barcodeDiv.style.margin = '20px 0';
+                barcodeDiv.innerHTML = `
+                    <h4>Barcode Marker ${i}</h4>
+                    <img src="https://github.com/AR-js-org/AR.js/raw/master/data/images/barcode-${i}.png" 
+                         alt="Barcode ${i}" style="border: 2px solid #000; max-width: 200px;">
+                    <br>
+                    <a href="https://github.com/AR-js-org/AR.js/raw/master/data/images/barcode-${i}.png" target="_blank">
+                        <button class="download-btn">Download Barcode ${i}</button>
+                    </a>
+                `;
+                container.appendChild(barcodeDiv);
+            }
+        }
+        
+        window.onload = generateBarcodes;
+    </script>
+</body>
+</html>

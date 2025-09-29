@@ -4,42 +4,332 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
-        html,
         body {
             margin: 0;
-            height: 100%
+            font-family: Arial, sans-serif;
         }
 
-        model-viewer {
+        .arjs-loader {
+            height: 100%;
             width: 100%;
-            height: 100vh
+            position: absolute;
+            top: 0;
+            left: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .arjs-loader div {
+            text-align: center;
+            font-size: 1.25em;
+            color: white;
+        }
+
+        .arjs-loader-text {
+            font-size: 0.75em;
+            margin-top: 0.5em;
+        }
+
+        #qr-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1000;
+        }
+
+        .qr-detected {
+            position: absolute;
+            border: 3px solid #00ff00;
+            background: rgba(0, 255, 0, 0.1);
         }
     </style>
 </head>
 
-<body>
-    <model-viewer src="./officeman_laptop_2.glb" ios-src="./officeman_laptop_2.usdz" ar
-        ar-modes="scene-viewer quick-look webxr" camera-controls autoplay shadow-intensity="1"
-        ar-scale="0.05 0.05 0.05" auto-rotate loading="eager">
-    </model-viewer>
-    
+<body style="margin: 0px; overflow: hidden;">
+    <div class="arjs-loader">
+        <div>
+            <div>Loading AR Camera...</div>
+            <div class="arjs-loader-text">Point your camera at any QR code to see the 3D model</div>
+        </div>
+    </div>
+
+    <!-- QR Detection Overlay -->
+    <div id="qr-overlay"></div>
+
+    <a-scene vr-mode-ui="enabled: false;" renderer="logarithmicDepthBuffer: true;" embedded
+        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;">
+
+        <!-- Multiple barcode markers for different QR codes -->
+        <a-marker type="barcode" value="0">
+            <a-entity gltf-model="./officeman_laptop_2.glb" scale="1 1 1" position="0 0.3 0" rotation="-90 0 0"
+                animation-mixer>
+            </a-entity>
+        </a-marker>
+
+        <a-marker type="barcode" value="1">
+            <a-entity gltf-model="./officeman_laptop_2.glb" scale="0.15 0.15 0.15" position="0 0.3 0" rotation="-90 0 0"
+                animation-mixer>
+            </a-entity>
+        </a-marker>
+
+        <a-marker type="barcode" value="2">
+            <a-entity gltf-model="./officeman_laptop_2.glb" scale="0.15 0.15 0.15" position="0 0.3 0" rotation="-90 0 0"
+                animation-mixer>
+            </a-entity>
+        </a-marker>
+
+        <!-- Hiro marker for testing -->
+        <a-marker preset="hiro">
+            <a-entity gltf-model="./officeman_laptop_2.glb" scale="0.15 0.15 0.15" position="0 0.3 0" rotation="-90 0 0"
+                animation-mixer>
+            </a-entity>
+        </a-marker>
+
+        <!-- Pattern marker for custom QR codes -->
+        <a-marker type="pattern" url="./marker.patt">
+            <a-entity gltf-model="./officeman_laptop_2.glb" scale="0.15 0.15 0.15" position="0 0.3 0" rotation="-90 0 0"
+                animation-mixer>
+            </a-entity>
+        </a-marker>
+
+        <!-- Camera -->
+        <a-entity camera></a-entity>
+    </a-scene>
+
     <script>
-        // Auto-launch AR when page loads on mobile devices
-        window.addEventListener('load', function() {
-            const modelViewer = document.querySelector('model-viewer');
-            
-            // Check if device supports AR
-            if (modelViewer && (navigator.userAgent.match(/iPhone|iPad|iPod|Android/i))) {
-                // Small delay to ensure model is loaded
-                setTimeout(() => {
-                    // Try to activate AR automatically
-                    if (modelViewer.canActivateAR) {
-                        modelViewer.activateAR();
-                    }
-                }, 1000);
+        let qrDetectionActive = false;
+        let videoElement = null;
+        let canvas = null;
+        let context = null;
+        let arModel = null;
+        let qrModelVisible = false;
+
+        // Initialize QR detection
+        function initQRDetection() {
+            setTimeout(() => {
+                videoElement = document.querySelector('video');
+                if (videoElement) {
+                    canvas = document.createElement('canvas');
+                    context = canvas.getContext('2d');
+
+                    // Create AR model for QR detection
+                    createQRARModel();
+
+                    qrDetectionActive = true;
+                    detectQR();
+                }
+            }, 3000);
+        }
+
+        // Create dynamic 3D model for QR code tracking
+        function createQRARModel() {
+            const scene = document.querySelector('a-scene');
+
+            // Create a simple 3D entity (not a marker)
+            arModel = document.createElement('a-entity');
+            arModel.setAttribute('id', 'qr-3d-model');
+            arModel.setAttribute('visible', 'false');
+
+            // Add a large, bright cube that's easy to see
+            const cube = document.createElement('a-box');
+            cube.setAttribute('color', '#ff0000');
+            cube.setAttribute('scale', '0.5 0.5 0.5');
+            cube.setAttribute('position', '0 0 0');
+            cube.setAttribute('material', 'color: #ff0000; emissive: #ff0000; emissiveIntensity: 0.3');
+            arModel.appendChild(cube);
+
+            // Add the GLTF model
+            const gltfModel = document.createElement('a-entity');
+            gltfModel.setAttribute('gltf-model', './officeman_laptop_2.glb');
+            gltfModel.setAttribute('scale', '0.3 0.3 0.3');
+            gltfModel.setAttribute('position', '0 0.5 0');
+            gltfModel.setAttribute('rotation', '-90 0 0');
+            arModel.appendChild(gltfModel);
+
+            // Add text for debugging
+            const text = document.createElement('a-text');
+            text.setAttribute('value', 'AR MODEL');
+            text.setAttribute('color', '#ffffff');
+            text.setAttribute('position', '0 1 0');
+            text.setAttribute('align', 'center');
+            text.setAttribute('scale', '3 3 3');
+            arModel.appendChild(text);
+
+            scene.appendChild(arModel);
+        }
+
+        // QR Code detection function
+        function detectQR() {
+            if (!qrDetectionActive || !videoElement) {
+                requestAnimationFrame(detectQR);
+                return;
             }
+
+            try {
+                canvas.width = videoElement.videoWidth;
+                canvas.height = videoElement.videoHeight;
+
+                if (canvas.width > 0 && canvas.height > 0) {
+                    context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+                    if (typeof jsQR !== 'undefined') {
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+                        if (code) {
+                            console.log('QR Code detected:', code.data);
+                            showQRDetection(code.location);
+                            showARModelOnQR(code.location);
+                        } else {
+                            hideQRDetection();
+                            hideARModel();
+                        }
+                    }
+                }
+            } catch (error) {
+                console.log('QR detection error:', error);
+            }
+
+            requestAnimationFrame(detectQR);
+        }
+
+        function showQRDetection(location) {
+            const overlay = document.getElementById('qr-overlay');
+
+            // Calculate center of QR code
+            const centerX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
+            const centerY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
+
+            // Show 3D model indicator at QR center
+            overlay.innerHTML = `
+                <div style="
+                    position: absolute;
+                    left: ${centerX}px;
+                    top: ${centerY}px;
+                    width: 20px;
+                    height: 20px;
+                    background: rgba(255, 0, 0, 0.8);
+                    border-radius: 50%;
+                    transform: translate(-50%, -50%);
+                    z-index: 1001;
+                "></div>
+                <div style="
+                    position: absolute;
+                    left: ${centerX}px;
+                    top: ${centerY - 40}px;
+                    background: rgba(0, 255, 0, 0.9);
+                    color: white;
+                    padding: 5px 10px;
+                    border-radius: 15px;
+                    font-size: 12px;
+                    transform: translateX(-50%);
+                    white-space: nowrap;
+                ">3D Model Here!</div>
+            `;
+        }
+
+        function hideQRDetection() {
+            document.getElementById('qr-overlay').innerHTML = '';
+        }
+
+        function showARModelOnQR(location) {
+            if (!arModel) return;
+
+            // Calculate QR code center
+            const centerX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
+            const centerY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
+            const qrWidth = location.topRightCorner.x - location.topLeftCorner.x;
+
+            // Convert screen coordinates to normalized coordinates
+            const normalizedX = (centerX / canvas.width - 0.5) * 2;
+            const normalizedY = -(centerY / canvas.height - 0.5) * 2;
+
+            // Position model closer and more visible
+            const distance = 1.5; // Fixed distance for visibility
+            const worldX = normalizedX * distance * 0.5; // Scale down movement
+            const worldY = normalizedY * distance * 0.5;
+            const worldZ = -distance;
+
+            // Position the 3D model
+            arModel.setAttribute('position', `${worldX} ${worldY} ${worldZ}`);
+            arModel.setAttribute('visible', 'true');
+
+            // Add rotation animation to the cube
+            const cube = arModel.querySelector('a-box');
+            if (cube && !qrModelVisible) {
+                cube.setAttribute('animation', {
+                    property: 'rotation',
+                    to: '360 360 360',
+                    dur: 3000,
+                    loop: true
+                });
+            }
+
+            // Add floating animation to the whole model
+            if (!qrModelVisible) {
+                arModel.setAttribute('animation__float', {
+                    property: 'position',
+                    to: `${worldX} ${worldY + 0.2} ${worldZ}`,
+                    dur: 2000,
+                    direction: 'alternate',
+                    loop: true
+                });
+            }
+
+            qrModelVisible = true;
+            console.log(`3D Model positioned at: ${worldX}, ${worldY}, ${worldZ}`);
+        }
+
+        function hideARModel() {
+            if (arModel && qrModelVisible) {
+                arModel.setAttribute('visible', 'false');
+                arModel.removeAttribute('animation__float');
+
+                const cube = arModel.querySelector('a-box');
+                if (cube) {
+                    cube.removeAttribute('animation');
+                }
+
+                qrModelVisible = false;
+            }
+        }
+
+        // Hide loader when AR is ready
+        window.addEventListener('load', function () {
+            const loader = document.querySelector('.arjs-loader');
+
+            setTimeout(() => {
+                if (loader) {
+                    loader.style.display = 'none';
+                }
+                initQRDetection();
+            }, 2000);
+        });
+
+        // Add marker found/lost events
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(() => {
+                const markers = document.querySelectorAll('a-marker');
+                markers.forEach(marker => {
+                    marker.addEventListener('markerFound', function () {
+                        console.log('Marker detected!');
+                    });
+
+                    marker.addEventListener('markerLost', function () {
+                        console.log('Marker lost');
+                    });
+                });
+            }, 1000);
         });
     </script>
 </body>
