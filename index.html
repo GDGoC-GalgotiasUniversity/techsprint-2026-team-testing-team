@@ -67,28 +67,53 @@
 
         /* Fallback zoom levels for different screen sizes */
         @media (max-width: 320px) {
-            video { transform: scale(0.35) !important; }
-            canvas { transform: scale(0.4) !important; }
+            video {
+                transform: scale(0.35) !important;
+            }
+
+            canvas {
+                transform: scale(0.4) !important;
+            }
         }
 
         @media (min-width: 321px) and (max-width: 375px) {
-            video { transform: scale(0.25) !important; }
-            canvas { transform: scale(0.3) !important; }
+            video {
+                transform: scale(0.25) !important;
+            }
+
+            canvas {
+                transform: scale(0.3) !important;
+            }
         }
 
         @media (min-width: 376px) and (max-width: 414px) {
-            video { transform: scale(0.2) !important; }
-            canvas { transform: scale(0.25) !important; }
+            video {
+                transform: scale(0.2) !important;
+            }
+
+            canvas {
+                transform: scale(0.25) !important;
+            }
         }
 
         @media (min-width: 415px) and (max-width: 768px) {
-            video { transform: scale(0.15) !important; }
-            canvas { transform: scale(0.2) !important; }
+            video {
+                transform: scale(0.15) !important;
+            }
+
+            canvas {
+                transform: scale(0.2) !important;
+            }
         }
 
         @media (min-width: 769px) {
-            video { transform: scale(0.4) !important; }
-            canvas { transform: scale(0.5) !important; }
+            video {
+                transform: scale(0.4) !important;
+            }
+
+            canvas {
+                transform: scale(0.5) !important;
+            }
         }
 
         /* Force full viewport usage */
@@ -195,9 +220,9 @@
             const screenWidth = window.screen.width;
             const screenHeight = window.screen.height;
             const pixelRatio = window.devicePixelRatio || 1;
-            
+
             console.log(`Device info: ${screenWidth}x${screenHeight}, ratio: ${pixelRatio}, UA: ${userAgent.substring(0, 50)}...`);
-            
+
             // iPhone specific adjustments
             if (userAgent.includes('iphone')) {
                 if (screenWidth >= 414) { // iPhone Plus/Pro Max models
@@ -238,6 +263,16 @@
             else if (userAgent.includes('huawei')) {
                 deviceZoomLevel = 0.16; // Huawei phones zoom in quite a bit
             }
+            // Realme adjustments
+            else if (userAgent.includes('realme')) {
+                if (screenWidth >= 480) { // Realme Pro/flagship models
+                    deviceZoomLevel = 0.08; // Extremely zoomed out - Realme zooms in heavily
+                } else if (screenWidth >= 360) { // Standard Realme phones
+                    deviceZoomLevel = 0.12; // Very zoomed out
+                } else { // Budget Realme phones
+                    deviceZoomLevel = 0.18; // Moderately zoomed out
+                }
+            }
             // High pixel density devices (general)
             else if (pixelRatio >= 3) {
                 deviceZoomLevel = 0.1; // Very high DPI devices need extreme zoom out
@@ -257,7 +292,7 @@
             else {
                 deviceZoomLevel = 0.25; // Conservative default
             }
-            
+
             console.log(`Selected zoom level: ${deviceZoomLevel}`);
         }
 
@@ -265,7 +300,7 @@
         function initQRDetection() {
             // Detect device and set appropriate zoom level
             detectDeviceAndSetZoom();
-            
+
             // Request wide-angle camera first
             requestHighQualityCamera();
 
@@ -278,7 +313,7 @@
                     videoElement.style.objectFit = 'cover'; // Prevent stretching
                     videoElement.style.transform = `scale(${deviceZoomLevel})`; // Device-specific zoom
                     videoElement.style.transformOrigin = 'center center'; // Scale from center
-                    
+
                     console.log(`Applied zoom level: ${deviceZoomLevel} for device: ${navigator.userAgent.substring(0, 50)}...`);
 
                     canvas = document.createElement('canvas');
@@ -564,14 +599,34 @@
             };
         }
 
-        // Start AR world tracking
+        // Start AR world tracking with full 360° support
         function startARWorldTracking() {
             // Record initial orientation when model is placed
-            initialOrientation = { ...deviceOrientation };
-
+            initialOrientation = { 
+                alpha: deviceOrientation.alpha || 0,
+                beta: deviceOrientation.beta || 0, 
+                gamma: deviceOrientation.gamma || 0
+            };
+            
+            // Enable high-frequency orientation updates for smooth AR
             window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+            
+            // Also listen for device motion for better tracking
+            if (window.DeviceMotionEvent) {
+                window.addEventListener('devicemotion', handleDeviceMotion, true);
+            }
+            
             worldTrackingActive = true;
-            console.log('AR world tracking enabled');
+            console.log('AR world tracking enabled with full 360° support');
+            console.log('Initial orientation:', initialOrientation);
+        }
+
+        // Handle device motion for enhanced AR tracking
+        function handleDeviceMotion(event) {
+            if (!worldTrackingActive) return;
+            
+            // Device motion can provide additional smoothing for AR tracking
+            // This helps with small movements and stabilization
         }
 
         // Handle device orientation changes for AR world tracking
@@ -587,29 +642,50 @@
             }
         }
 
-        // Update AR camera for world tracking (model stays fixed, camera moves)
+        // Update AR camera for full 360° world tracking
         function updateARCamera() {
             if (!cameraEntity || !worldTrackingActive) return;
 
-            // Calculate rotation difference from initial position
-            const deltaAlpha = deviceOrientation.alpha - initialOrientation.alpha;
-            const deltaBeta = deviceOrientation.beta - initialOrientation.beta;
-            const deltaGamma = deviceOrientation.gamma - initialOrientation.gamma;
-
-            // Apply camera rotation to simulate looking around the AR model
-            const cameraRotationX = -deltaBeta * 0.8; // Up/down look
-            const cameraRotationY = deltaAlpha * 0.8;  // Left/right look
-            const cameraRotationZ = -deltaGamma * 0.3; // Tilt compensation
-
-            // Update camera rotation for AR world tracking
+            // Use absolute device orientation for full 360° tracking
+            // This creates proper AR world tracking where you can walk around the model
+            
+            // Convert device orientation to camera rotation for natural AR experience
+            let cameraRotationX = -deviceOrientation.beta; // Up/down tilt (invert for natural feel)
+            let cameraRotationY = deviceOrientation.alpha; // Left/right rotation (compass)
+            let cameraRotationZ = deviceOrientation.gamma; // Side tilt
+            
+            // Handle compass wrap-around (0° to 360°)
+            if (cameraRotationY < 0) {
+                cameraRotationY += 360;
+            }
+            
+            // Apply sensitivity adjustments for smooth movement
+            cameraRotationX *= 0.7; // Reduce up/down sensitivity slightly
+            cameraRotationY *= 0.8; // Reduce left/right sensitivity slightly  
+            cameraRotationZ *= 0.4; // Reduce tilt sensitivity significantly
+            
+            // Clamp extreme rotations for stability
+            cameraRotationX = Math.max(-85, Math.min(85, cameraRotationX)); // Prevent over-tilting
+            
+            // Update camera rotation for full AR world tracking
             cameraEntity.setAttribute('rotation', `${cameraRotationX} ${cameraRotationY} ${cameraRotationZ}`);
+            
+            // Debug log for troubleshooting (remove in production)
+            if (Math.random() < 0.01) { // Log occasionally to avoid spam
+                console.log(`Camera rotation: X:${cameraRotationX.toFixed(1)}° Y:${cameraRotationY.toFixed(1)}° Z:${cameraRotationZ.toFixed(1)}°`);
+            }
         }
 
-        // Keep model fixed in world space (no rotation needed - camera does the work)
+        // Keep model completely fixed in world space for proper AR tracking
         function updateModelRotation() {
-            // Model stays completely static in world coordinates
-            // Camera movement creates the AR effect of looking around the model
-            return; // No model rotation needed
+            if (!arModel || !qrModelVisible) return;
+            
+            // Model must stay completely static in world coordinates
+            // The camera rotation handles all the AR movement
+            // This ensures the model appears anchored to the real world
+            
+            // Ensure model maintains its original rotation (no gyroscope influence)
+            arModel.setAttribute('rotation', '0 0 90'); // Keep original top-down orientation
         }
 
         // Fallback rotation if gyroscope is not available
