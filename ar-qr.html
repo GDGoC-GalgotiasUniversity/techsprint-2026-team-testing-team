@@ -68,7 +68,10 @@
   // Stable, unscaled model bounds computed once at load
   let baseSize = null;
   let baseCenter = null;
-  const SCALE_MULTIPLIER = 10; // make the QR-following model 10x larger
+  const SCALE_MULTIPLIER = 2; // reduced overall size multiplier
+  // Device orientation (for AR-like rotation)
+  let deviceYawRad = 0; // radians
+  let orientationEnabled = false;
 
     // Camera setup
     function startCamera() {
@@ -116,6 +119,22 @@
 
     window.addEventListener('resize', resizeElements);
     startCamera();
+    // Enable device orientation on first user interaction (required on iOS)
+    const enableOrientation = async () => {
+      if (orientationEnabled) return;
+      try {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const resp = await DeviceOrientationEvent.requestPermission();
+          if (resp !== 'granted') return;
+        }
+        window.addEventListener('deviceorientation', e => {
+          const alpha = (e.alpha ?? 0); // 0..360
+          deviceYawRad = alpha * Math.PI / 180;
+        }, { passive: true });
+        orientationEnabled = true;
+      } catch {}
+    };
+    document.addEventListener('click', enableOrientation, { once: true });
 
     // Three.js setup
     function setupThree() {
@@ -211,8 +230,8 @@
           const scaleY = qrHeight / sizeY;
           const scale = Math.min(scaleX, scaleY) * SCALE_MULTIPLIER;
           model.scale.setScalar(scale);
-          // Top view
-          model.rotation.set(Math.PI / 2, 0, 0);
+          // Top view with phone yaw applied around Z
+          model.rotation.set(Math.PI / 2, 0, deviceYawRad);
           // Recompute bbox after scale+rotation to align exact visual center to QR
           model.position.set(0, 0, 0);
           model.updateWorldMatrix(true, true);
