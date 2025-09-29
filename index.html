@@ -53,27 +53,35 @@
             background: rgba(0, 255, 0, 0.1);
         }
 
-        /* Mobile camera zoom fix */
+        /* Aggressive mobile camera zoom fix */
         video {
             object-fit: cover !important;
-            transform: scale(0.6) !important;
-            transform-origin: center !important;
+            transform: scale(0.3) !important;
+            transform-origin: center center !important;
+            width: 100% !important;
+            height: 100% !important;
         }
 
         canvas {
-            transform: scale(0.7) !important;
-            transform-origin: center !important;
+            transform: scale(0.4) !important;
+            transform-origin: center center !important;
         }
 
-        /* Extra mobile zoom out */
+        /* Maximum zoom out for mobile devices */
         @media (max-width: 768px) {
             video {
-                transform: scale(0.4) !important;
+                transform: scale(0.2) !important;
             }
 
             canvas {
-                transform: scale(0.5) !important;
+                transform: scale(0.25) !important;
             }
+        }
+
+        /* Force full viewport usage */
+        a-scene {
+            width: 100vw !important;
+            height: 100vh !important;
         }
 
         /* Wide camera view settings */
@@ -117,7 +125,7 @@
     <div id="qr-overlay"></div>
 
     <a-scene vr-mode-ui="enabled: false;" renderer="logarithmicDepthBuffer: true;" embedded
-        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 480; sourceHeight: 360; displayWidth: 480; displayHeight: 360;">
+        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 320; sourceHeight: 240; displayWidth: 320; displayHeight: 240;">
 
         <!-- Multiple barcode markers for different QR codes -->
         <a-marker type="barcode" value="0">
@@ -147,8 +155,8 @@
 
         <!-- Pattern marker removed due to file issues -->
 
-        <!-- Camera with AR world tracking -->
-        <a-entity id="ar-camera" camera="fov: 120; zoom: 0.5; near: 0.1; far: 1000" look-controls="enabled: false"
+        <!-- Camera with maximum wide view for mobile -->
+        <a-entity id="ar-camera" camera="fov: 140; zoom: 0.2; near: 0.05; far: 2000" look-controls="enabled: false"
             wasd-controls="enabled: false"></a-entity>
     </a-scene>
 
@@ -179,7 +187,8 @@
                     videoElement.setAttribute('width', '640');
                     videoElement.setAttribute('height', '480');
                     videoElement.style.objectFit = 'cover'; // Prevent stretching
-                    videoElement.style.transform = 'scale(0.5)'; // Much wider view for mobile QR scanning
+                    videoElement.style.transform = 'scale(0.3)'; // Extremely wide view for mobile QR scanning
+                    videoElement.style.transformOrigin = 'center center'; // Scale from center
 
                     canvas = document.createElement('canvas');
                     context = canvas.getContext('2d', { willReadFrequently: true });
