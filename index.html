@@ -193,9 +193,8 @@
 
         <!-- Pattern marker removed due to file issues -->
 
-        <!-- Camera with maximum wide view for mobile -->
-        <a-entity id="ar-camera" camera="fov: 140; zoom: 0.2; near: 0.05; far: 2000" look-controls="enabled: false"
-            wasd-controls="enabled: false"></a-entity>
+        <!-- Camera with AR.js built-in tracking -->
+        <a-entity id="ar-camera" camera="fov: 140; zoom: 0.2; near: 0.05; far: 2000"></a-entity>
     </a-scene>
 
     <script>
@@ -209,9 +208,9 @@
         let animationUpdateLoop = null; // Animation update loop
         let gyroscopeActive = false; // Track gyroscope status
         let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 }; // Device orientation data
-        let initialOrientation = { alpha: 0, beta: 0, gamma: 0 }; // Initial orientation when model is placed
         let cameraEntity = null; // Reference to camera entity
-        let worldTrackingActive = false; // Track if world tracking is active
+        let markerTrackingActive = false; // Track if marker-based AR is active
+        let virtualMarker = null; // Virtual marker for AR tracking
         let deviceZoomLevel = 0.3; // Dynamic zoom level based on device
 
         // Detect device type and set appropriate zoom level
@@ -559,63 +558,55 @@
             console.log('Animation update loop started');
         }
 
-        // Enable AR world tracking system
-        function enableARWorldTracking() {
-            if (worldTrackingActive) return; // Already active
+        // Enable marker-based AR tracking (no gyroscope needed)
+        function enableMarkerARTracking() {
+            if (markerTrackingActive) return; // Already active
 
-            // Check if permission is needed (iOS 13+)
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                // Show permission dialog
-                showGyroPermissionDialog();
-            } else {
-                // Android or older iOS - no permission needed
-                startARWorldTracking();
-            }
+            // Create virtual marker at QR location for AR tracking
+            createVirtualMarker();
+            markerTrackingActive = true;
+            console.log('Marker-based AR tracking enabled - no gyroscope needed');
         }
 
-        // Show gyroscope permission dialog
-        function showGyroPermissionDialog() {
-            const permissionDiv = document.getElementById('gyro-permission');
-            permissionDiv.style.display = 'block';
+        // Create marker-based AR tracking using AR.js
+        function createVirtualMarker() {
+            if (!arModel || !arModel.worldPosition) return;
 
-            document.getElementById('enable-gyro').onclick = function () {
-                DeviceOrientationEvent.requestPermission()
-                    .then(response => {
-                        if (response === 'granted') {
-                            startARWorldTracking();
-                        } else {
-                            console.log('Device orientation permission denied');
-                        }
-                        permissionDiv.style.display = 'none';
-                    })
-                    .catch(error => {
-                        console.log('Device orientation permission error:', error);
-                        permissionDiv.style.display = 'none';
-                    });
-            };
+            // Use AR.js built-in marker tracking - model stays world-locked
+            // The AR.js system handles all the camera tracking automatically
 
-            document.getElementById('skip-gyro').onclick = function () {
-                permissionDiv.style.display = 'none';
-            };
+            // Make model responsive to camera position using look-at
+            arModel.setAttribute('look-at', '#ar-camera');
+
+            // Add smooth rotation animation to make model more dynamic
+            arModel.setAttribute('animation__rotate', {
+                property: 'rotation',
+                to: '0 360 0',
+                dur: 20000,
+                loop: true,
+                easing: 'linear'
+            });
+
+            console.log('AR.js marker tracking enabled - model will follow camera naturally');
         }
 
         // Start AR world tracking with full 360° support
         function startARWorldTracking() {
             // Record initial orientation when model is placed
-            initialOrientation = { 
+            initialOrientation = {
                 alpha: deviceOrientation.alpha || 0,
-                beta: deviceOrientation.beta || 0, 
+                beta: deviceOrientation.beta || 0,
                 gamma: deviceOrientation.gamma || 0
             };
-            
+
             // Enable high-frequency orientation updates for smooth AR
             window.addEventListener('deviceorientation', handleDeviceOrientation, true);
-            
+
             // Also listen for device motion for better tracking
             if (window.DeviceMotionEvent) {
                 window.addEventListener('devicemotion', handleDeviceMotion, true);
             }
-            
+
             worldTrackingActive = true;
             console.log('AR world tracking enabled with full 360° support');
             console.log('Initial orientation:', initialOrientation);
@@ -624,7 +615,7 @@
         // Handle device motion for enhanced AR tracking
         function handleDeviceMotion(event) {
             if (!worldTrackingActive) return;
-            
+
             // Device motion can provide additional smoothing for AR tracking
             // This helps with small movements and stabilization
         }
@@ -648,44 +639,40 @@
 
             // Use absolute device orientation for full 360° tracking
             // This creates proper AR world tracking where you can walk around the model
-            
+
             // Convert device orientation to camera rotation for natural AR experience
             let cameraRotationX = -deviceOrientation.beta; // Up/down tilt (invert for natural feel)
             let cameraRotationY = deviceOrientation.alpha; // Left/right rotation (compass)
             let cameraRotationZ = deviceOrientation.gamma; // Side tilt
-            
+
             // Handle compass wrap-around (0° to 360°)
             if (cameraRotationY < 0) {
                 cameraRotationY += 360;
             }
-            
+
             // Apply sensitivity adjustments for smooth movement
             cameraRotationX *= 0.7; // Reduce up/down sensitivity slightly
             cameraRotationY *= 0.8; // Reduce left/right sensitivity slightly  
             cameraRotationZ *= 0.4; // Reduce tilt sensitivity significantly
-            
+
             // Clamp extreme rotations for stability
             cameraRotationX = Math.max(-85, Math.min(85, cameraRotationX)); // Prevent over-tilting
-            
+
             // Update camera rotation for full AR world tracking
             cameraEntity.setAttribute('rotation', `${cameraRotationX} ${cameraRotationY} ${cameraRotationZ}`);
-            
+
             // Debug log for troubleshooting (remove in production)
             if (Math.random() < 0.01) { // Log occasionally to avoid spam
                 console.log(`Camera rotation: X:${cameraRotationX.toFixed(1)}° Y:${cameraRotationY.toFixed(1)}° Z:${cameraRotationZ.toFixed(1)}°`);
             }
         }
 
-        // Keep model completely fixed in world space for proper AR tracking
+        // Model uses AR.js built-in tracking - no manual rotation needed
         function updateModelRotation() {
-            if (!arModel || !qrModelVisible) return;
-            
-            // Model must stay completely static in world coordinates
-            // The camera rotation handles all the AR movement
-            // This ensures the model appears anchored to the real world
-            
-            // Ensure model maintains its original rotation (no gyroscope influence)
-            arModel.setAttribute('rotation', '0 0 90'); // Keep original top-down orientation
+            // AR.js handles all tracking automatically
+            // Model stays world-locked using AR.js marker system
+            // look-at component makes model face camera naturally
+            return;
         }
 
         // Fallback rotation if gyroscope is not available
@@ -751,8 +738,8 @@
                 // Start animation update loop for video textures
                 startAnimationUpdateLoop();
 
-                // Enable AR world tracking
-                enableARWorldTracking();
+                // Enable marker-based AR tracking (no gyroscope needed)
+                enableMarkerARTracking();
 
                 console.log(`3D Model fixed at QR location: ${worldX}, ${worldY}, ${worldZ}`);
             }
