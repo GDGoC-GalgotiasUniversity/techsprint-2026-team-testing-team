@@ -62,13 +62,13 @@
   const debugCanvas = document.getElementById('debug-canvas');
   let renderer, scene, camera, mixer, model, modelLoaded = false;
   let qrLocation = null;
-  let baseBox = null, baseSize = null, baseCenter = null;
-  let isPinnedToQr = false; // keep model visible after first detection
   let animationPlaying = false;
   let lastDetectionTs = 0;
-  const DEBUG = true; // set true to show overlays
-  const MAX_SIZE_FRACTION = 0.6; // model bbox will not exceed 60% of canvas
-  const PIN_TIMEOUT_MS = 8000; // auto-unpin after 8s without detection
+  const PIN_TIMEOUT_MS = 2000; // keep visible 2s after loss to avoid flicker
+  // Stable, unscaled model bounds computed once at load
+  let baseSize = null;
+  let baseCenter = null;
+  const SCALE_MULTIPLIER = 10; // make the QR-following model 10x larger
 
     // Camera setup
     function startCamera() {
@@ -102,7 +102,6 @@
       debugCanvas.style.left = '0';
       debugCanvas.style.pointerEvents = 'none';
       debugCanvas.style.zIndex = '10';
-      debugCanvas.style.display = DEBUG ? 'block' : 'none';
       if (camera) {
         camera.left = 0;
         camera.right = w;
@@ -117,20 +116,12 @@
 
     window.addEventListener('resize', resizeElements);
     startCamera();
-  // Tap to clear/pin toggle
-  debugCanvas.addEventListener('click', () => {
-    isPinnedToQr = false;
-    lastDetectionTs = 0;
-    if (model) model.visible = false;
-    document.getElementById('info').textContent = 'Pin cleared. Point to a QR.';
-  });
 
     // Three.js setup
     function setupThree() {
   renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true });
   renderer.setSize(threeCanvas.width, threeCanvas.height, false);
   renderer.setClearColor(0x000000, 0);
-  // Ensure proper color space so textures are not dark
   if ('outputColorSpace' in renderer) {
     renderer.outputColorSpace = THREE.SRGBColorSpace;
   } else if ('outputEncoding' in renderer) {
@@ -141,11 +132,10 @@
     renderer.toneMappingExposure = 1.1;
   }
       scene = new THREE.Scene();
-      scene.background = null;
   // Use orthographic camera for 2D overlay
-  camera = new THREE.OrthographicCamera(0, threeCanvas.width, 0, threeCanvas.height, 0.1, 10000);
+  camera = new THREE.OrthographicCamera(0, threeCanvas.width, threeCanvas.height, 0, -1000, 1000);
   camera.position.set(0, 0, 10);
-      // Add lights for PBR glTF
+      // Add lights
       const light = new THREE.DirectionalLight(0xffffff, 1.0);
       light.position.set(0, 5, 10);
       scene.add(light);
@@ -157,61 +147,26 @@
       // Load model
       const loader = new GLTFLoader();
       loader.load('officeman_laptop_2.glb', gltf => {
-        const content = gltf.scene;
-        // Precompute robust bounds from raw content
-        const tmp = new THREE.Box3();
-        const agg = new THREE.Box3();
-        let has = false;
-        content.updateWorldMatrix(true, true);
-        content.traverse(obj => {
-          if (obj.isMesh && obj.geometry) {
-            if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
-            tmp.copy(obj.geometry.boundingBox);
-            tmp.applyMatrix4(obj.matrixWorld);
-            if (!has) { agg.copy(tmp); has = true; } else { agg.union(tmp); }
-          }
-        });
-        if (has) {
-          baseBox = agg.clone();
-          baseSize = new THREE.Vector3();
-          baseBox.getSize(baseSize);
-          baseCenter = new THREE.Vector3();
-          baseBox.getCenter(baseCenter);
-        } else {
-          baseSize = new THREE.Vector3(1,1,1);
-          baseCenter = new THREE.Vector3(0,0,0);
+        if (modelLoaded && model) {
+          // Ensure only one instance exists
+          scene.remove(model);
+          model = null;
+          modelLoaded = false;
         }
-
-        // Create an anchor group and center the content at origin using baseCenter
-        const anchor = new THREE.Group();
-        content.position.sub(baseCenter.clone());
-        anchor.add(content);
-        model = anchor;
+        model = gltf.scene;
+        // Compute stable base bounds once (in model space)
+        const box = new THREE.Box3().setFromObject(model);
+        baseSize = new THREE.Vector3();
+        box.getSize(baseSize);
+        baseCenter = new THREE.Vector3();
+        box.getCenter(baseCenter);
         scene.add(model);
         modelLoaded = true;
-        model.visible = false; // show only when QR is detected
+        model.visible = false;
         document.getElementById('info').textContent = '3D model loaded! Point to a QR.';
-
-        // Ensure materials use correct color space
-        content.traverse(o => {
-          if (o.isMesh) {
-            o.castShadow = false;
-            o.receiveShadow = false;
-            if (o.material) {
-              if ('toneMapped' in o.material) o.material.toneMapped = true;
-              // Default depth for realistic 3D
-              if ('depthTest' in o.material) o.material.depthTest = true;
-              if ('depthWrite' in o.material) o.material.depthWrite = true;
-              if ('side' in o.material) o.material.side = THREE.DoubleSide;
-              if ('transparent' in o.material && o.material.transparent && 'opacity' in o.material && o.material.opacity < 1) {
-                o.material.opacity = Math.max(0.999, o.material.opacity);
-              }
-              o.material.needsUpdate = true;
-            }
-          }
-        });
-        model.renderOrder = 0;
-
+        // Debug: log position and scale
+        console.log('Model position:', model.position);
+        console.log('Model scale:', model.scale);
         // Animation
         if (gltf.animations.length > 0) {
           mixer = new THREE.AnimationMixer(model);
@@ -228,7 +183,7 @@
       if (modelLoaded && model) {
         renderer.render(scene, camera);
       }
-      // QR detection + debug overlay
+      // QR detection with pin timeout
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         resizeElements();
         const tempCanvas = document.createElement('canvas');
@@ -238,8 +193,6 @@
         tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
         const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height);
-        const dbg = DEBUG ? debugCanvas.getContext('2d') : null;
-        if (DEBUG) dbg.clearRect(0, 0, debugCanvas.width, debugCanvas.height);
         if (code && modelLoaded && model) {
           qrLocation = code.location;
           document.getElementById('info').textContent = 'QR code detected!';
@@ -251,86 +204,28 @@
           // Calculate QR size
           const qrWidth = Math.abs(qrLocation.topRightCorner.x - qrLocation.topLeftCorner.x);
           const qrHeight = Math.abs(qrLocation.bottomLeftCorner.y - qrLocation.topLeftCorner.y);
-          // Use precomputed bounds to center and scale
+          // Use stable base bounds for scale and centering
           const sizeX = (baseSize && isFinite(baseSize.x) && baseSize.x > 0) ? baseSize.x : 1;
           const sizeY = (baseSize && isFinite(baseSize.y) && baseSize.y > 0) ? baseSize.y : 1;
           const scaleX = qrWidth / sizeX;
           const scaleY = qrHeight / sizeY;
-           let scale = Math.min(scaleX, scaleY);
-           scale *= 10; // base amplification
+          const scale = Math.min(scaleX, scaleY) * SCALE_MULTIPLIER;
           model.scale.setScalar(scale);
-           // Top view; Z will be aligned to QR orientation below
-           model.rotation.set(Math.PI / 2, 0, 0);
-          // Since content is pre-centered at origin, align anchor directly to QR center
-          model.position.set(qrCenterX, qrCenterY, 0);
+          // Top view
+          model.rotation.set(Math.PI / 2, 0, 0);
+          // Recompute bbox after scale+rotation to align exact visual center to QR
+          model.position.set(0, 0, 0);
           model.updateWorldMatrix(true, true);
-          const alignedBox = new THREE.Box3().setFromObject(model);
-          const alignedCenter = new THREE.Vector3(0,0,0);
-           // Align Z-rotation to QR orientation (angle of top edge)
-           const dx = qrLocation.topRightCorner.x - qrLocation.topLeftCorner.x;
-           const dy = qrLocation.topRightCorner.y - qrLocation.topLeftCorner.y;
-           const qrAngle = Math.atan2(dy, dx); // radians
-           model.rotation.z = qrAngle;
-          model.updateWorldMatrix(true, true);
-          // Anchor stays at the QR center; nudge towards camera so it renders above video
-          model.position.set(qrCenterX, qrCenterY, 1);
-          // Ensure transforms applied and get final center for debug
-          model.updateWorldMatrix(true, true);
-          alignedBox.setFromObject(model);
-          const finalCenter = new THREE.Vector3();
-          alignedBox.getCenter(finalCenter);
-           // Cap size: shrink if bbox exceeds MAX_SIZE_FRACTION of canvas
-          const bboxW = alignedBox.max.x - alignedBox.min.x;
-          const bboxH = alignedBox.max.y - alignedBox.min.y;
-           const maxW = threeCanvas.width * MAX_SIZE_FRACTION;
-           const maxH = threeCanvas.height * MAX_SIZE_FRACTION;
-           if (bboxW > maxW || bboxH > maxH) {
-             const cap = Math.min(maxW / bboxW, maxH / bboxH);
-             model.scale.multiplyScalar(cap);
-             model.updateWorldMatrix(true, true);
-             alignedBox.setFromObject(model);
-            // Keep anchored at QR center
-            model.position.set(qrCenterX, qrCenterY, 1);
-           }
+          const placedBox = new THREE.Box3().setFromObject(model);
+          const placedCenter = new THREE.Vector3();
+          placedBox.getCenter(placedCenter);
+          model.position.set(qrCenterX - placedCenter.x, qrCenterY - placedCenter.y, 0);
           model.visible = true;
-          isPinnedToQr = true; // pin after first valid detection
-
-          if (DEBUG) {
-            // DEBUG DRAW: QR quad and centers
-            const drawLine = (a, b, color) => {
-              dbg.strokeStyle = color; dbg.lineWidth = 3; dbg.beginPath(); dbg.moveTo(a.x, a.y); dbg.lineTo(b.x, b.y); dbg.stroke();
-            };
-            drawLine(qrLocation.topLeftCorner, qrLocation.topRightCorner, '#00ff88');
-            drawLine(qrLocation.topRightCorner, qrLocation.bottomRightCorner, '#00ff88');
-            drawLine(qrLocation.bottomRightCorner, qrLocation.bottomLeftCorner, '#00ff88');
-            drawLine(qrLocation.bottomLeftCorner, qrLocation.topLeftCorner, '#00ff88');
-            // center
-            dbg.fillStyle = '#ff0'; dbg.beginPath(); dbg.arc(qrCenterX, qrCenterY, 6, 0, Math.PI * 2); dbg.fill();
-            // model bbox after placement
-            const min = alignedBox.min, max = alignedBox.max;
-            dbg.strokeStyle = '#ff0066'; dbg.lineWidth = 2; dbg.strokeRect(min.x, min.y, (max.x - min.x), (max.y - min.y));
-            // model center
-            dbg.fillStyle = '#0ff'; dbg.beginPath(); dbg.arc(finalCenter.x, finalCenter.y, 5, 0, Math.PI * 2); dbg.fill();
-            // text info
-            dbg.fillStyle = 'rgba(0,0,0,0.6)'; dbg.fillRect(8, 8, 340, 76);
-            dbg.fillStyle = '#fff'; dbg.font = '14px monospace';
-            dbg.fillText(`scale=${scale.toFixed(2)} pinned=${isPinnedToQr}`, 16, 28);
-            dbg.fillText(`qrCenter=(${qrCenterX.toFixed(1)}, ${qrCenterY.toFixed(1)})`, 16, 46);
-            dbg.fillText(`modelPos=(${model.position.x.toFixed(1)}, ${model.position.y.toFixed(1)})`, 16, 64);
-          }
-          console.log('[AR] placed', { scale, qrCenterX, qrCenterY, modelPos: model.position.clone(), finalCenter, bbox: { min: alignedBox.min.clone(), max: alignedBox.max.clone() }, rotation: model.rotation.clone() });
-        } else if (modelLoaded && model) {
-          // Keep showing last known transform after first detection; auto-timeout
+        }
+        else if (modelLoaded && model) {
+          // keep visible briefly after loss to avoid flicker
           const age = performance.now() - lastDetectionTs;
-          model.visible = isPinnedToQr && age < PIN_TIMEOUT_MS;
-          // DEBUG HUD when no QR
-          if (DEBUG) {
-            const secs = ((performance.now() - lastDetectionTs) / 1000).toFixed(1);
-            dbg.fillStyle = 'rgba(0,0,0,0.6)'; dbg.fillRect(8, 8, 260, 44);
-            dbg.fillStyle = '#fff'; dbg.font = '14px monospace';
-            dbg.fillText(`no QR; pinned=${isPinnedToQr}`, 16, 28);
-            dbg.fillText(`lastDet ${secs}s ago`, 16, 46);
-          }
+          model.visible = age < PIN_TIMEOUT_MS;
         }
       }
       if (animationPlaying && mixer) {
