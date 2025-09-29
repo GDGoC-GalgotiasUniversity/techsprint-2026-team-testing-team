@@ -147,9 +147,8 @@
 
         <!-- Pattern marker removed due to file issues -->
 
-        <!-- Camera with much wider field of view and device orientation -->
-        <a-entity camera="fov: 120; zoom: 0.5; near: 0.1; far: 1000"
-            look-controls="enabled: true; magicWindowTrackingEnabled: true; touchEnabled: false"
+        <!-- Camera with AR world tracking -->
+        <a-entity id="ar-camera" camera="fov: 120; zoom: 0.5; near: 0.1; far: 1000" look-controls="enabled: false"
             wasd-controls="enabled: false"></a-entity>
     </a-scene>
 
@@ -164,7 +163,9 @@
         let animationUpdateLoop = null; // Animation update loop
         let gyroscopeActive = false; // Track gyroscope status
         let deviceOrientation = { alpha: 0, beta: 0, gamma: 0 }; // Device orientation data
+        let initialOrientation = { alpha: 0, beta: 0, gamma: 0 }; // Initial orientation when model is placed
         let cameraEntity = null; // Reference to camera entity
+        let worldTrackingActive = false; // Track if world tracking is active
 
         // Initialize QR detection with high-quality camera
         function initQRDetection() {
@@ -187,7 +188,7 @@
                     createQRARModel();
 
                     // Get camera entity reference
-                    cameraEntity = document.querySelector('[camera]');
+                    cameraEntity = document.querySelector('#ar-camera');
 
                     qrDetectionActive = true;
                     detectQR();
@@ -423,9 +424,9 @@
             console.log('Animation update loop started');
         }
 
-        // Enable gyroscope-based rotation for AR model
-        function enableGyroscopeRotation() {
-            if (gyroscopeActive) return; // Already active
+        // Enable AR world tracking system
+        function enableARWorldTracking() {
+            if (worldTrackingActive) return; // Already active
 
             // Check if permission is needed (iOS 13+)
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -433,7 +434,7 @@
                 showGyroPermissionDialog();
             } else {
                 // Android or older iOS - no permission needed
-                startGyroscopeListening();
+                startARWorldTracking();
             }
         }
 
@@ -446,73 +447,69 @@
                 DeviceOrientationEvent.requestPermission()
                     .then(response => {
                         if (response === 'granted') {
-                            startGyroscopeListening();
+                            startARWorldTracking();
                         } else {
                             console.log('Device orientation permission denied');
-                            addFallbackRotation();
                         }
                         permissionDiv.style.display = 'none';
                     })
                     .catch(error => {
                         console.log('Device orientation permission error:', error);
-                        addFallbackRotation();
                         permissionDiv.style.display = 'none';
                     });
             };
 
             document.getElementById('skip-gyro').onclick = function () {
-                addFallbackRotation();
                 permissionDiv.style.display = 'none';
             };
         }
 
-        // Start listening to device orientation
-        function startGyroscopeListening() {
+        // Start AR world tracking
+        function startARWorldTracking() {
+            // Record initial orientation when model is placed
+            initialOrientation = { ...deviceOrientation };
+
             window.addEventListener('deviceorientation', handleDeviceOrientation, true);
-            gyroscopeActive = true;
-            console.log('Gyroscope rotation enabled');
+            worldTrackingActive = true;
+            console.log('AR world tracking enabled');
         }
 
-        // Handle device orientation changes
+        // Handle device orientation changes for AR world tracking
         function handleDeviceOrientation(event) {
-            // Get orientation values
+            // Get current orientation values
             deviceOrientation.alpha = event.alpha || 0; // Z axis (compass)
             deviceOrientation.beta = event.beta || 0;   // X axis (front-back tilt)
             deviceOrientation.gamma = event.gamma || 0; // Y axis (left-right tilt)
 
-            // Update both camera and model orientation
-            updateCameraOrientation();
-            if (arModel && qrModelVisible) {
-                updateModelRotation();
+            // Update camera to create AR world tracking effect
+            if (worldTrackingActive && cameraEntity) {
+                updateARCamera();
             }
         }
 
-        // Update camera orientation based on device rotation
-        function updateCameraOrientation() {
-            if (!cameraEntity) return;
+        // Update AR camera for world tracking (model stays fixed, camera moves)
+        function updateARCamera() {
+            if (!cameraEntity || !worldTrackingActive) return;
 
-            // Convert device orientation to camera rotation
-            // This makes the AR world rotate with the device
-            const cameraRotationX = -deviceOrientation.beta * 0.5; // Invert for natural feel
-            const cameraRotationY = deviceOrientation.alpha * 0.3;
-            const cameraRotationZ = deviceOrientation.gamma * 0.3;
+            // Calculate rotation difference from initial position
+            const deltaAlpha = deviceOrientation.alpha - initialOrientation.alpha;
+            const deltaBeta = deviceOrientation.beta - initialOrientation.beta;
+            const deltaGamma = deviceOrientation.gamma - initialOrientation.gamma;
 
-            // Apply rotation to camera for world tracking
+            // Apply camera rotation to simulate looking around the AR model
+            const cameraRotationX = -deltaBeta * 0.8; // Up/down look
+            const cameraRotationY = deltaAlpha * 0.8;  // Left/right look
+            const cameraRotationZ = -deltaGamma * 0.3; // Tilt compensation
+
+            // Update camera rotation for AR world tracking
             cameraEntity.setAttribute('rotation', `${cameraRotationX} ${cameraRotationY} ${cameraRotationZ}`);
         }
 
-        // Update model rotation to stay world-locked
+        // Keep model fixed in world space (no rotation needed - camera does the work)
         function updateModelRotation() {
-            if (!arModel || !qrModelVisible) return;
-
-            // Keep model stable in world coordinates by counter-rotating against camera
-            // This makes the model appear fixed in space when you rotate the phone
-            const modelRotationX = 0; // Keep model level in world
-            const modelRotationY = -deviceOrientation.alpha * 0.3; // Counter-rotate against camera Y
-            const modelRotationZ = 0; // Keep model upright in world
-
-            // Apply world-locked rotation
-            arModel.setAttribute('rotation', `${modelRotationX} ${modelRotationY} ${modelRotationZ}`);
+            // Model stays completely static in world coordinates
+            // Camera movement creates the AR effect of looking around the model
+            return; // No model rotation needed
         }
 
         // Fallback rotation if gyroscope is not available
@@ -578,8 +575,8 @@
                 // Start animation update loop for video textures
                 startAnimationUpdateLoop();
 
-                // Enable gyroscope rotation for the model
-                enableGyroscopeRotation();
+                // Enable AR world tracking
+                enableARWorldTracking();
 
                 console.log(`3D Model fixed at QR location: ${worldX}, ${worldY}, ${worldZ}`);
             }
