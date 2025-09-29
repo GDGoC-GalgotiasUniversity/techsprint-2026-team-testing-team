@@ -131,11 +131,145 @@
             }, 3000);
         }
 
-        // Create CSS-based 3D model (more reliable than A-Frame)
+        // Create dynamic AR marker system with better debugging
         function createQRARModel() {
-            // The 3D model is now handled directly in showQRDetection function
-            // using CSS animations and visual effects
-            console.log('CSS-based 3D model system initialized');
+            const scene = document.querySelector('a-scene');
+
+            // Create a dynamic marker that we'll position based on QR detection
+            arModel = document.createElement('a-entity');
+            arModel.setAttribute('id', 'dynamic-qr-3d-model');
+            arModel.setAttribute('visible', 'false');
+
+            // Add a visible test cube first (always visible)
+            const testCube = document.createElement('a-box');
+            testCube.setAttribute('color', '#ff0000');
+            testCube.setAttribute('scale', '0.3 0.3 0.3');
+            testCube.setAttribute('position', '0 1 0');
+            testCube.setAttribute('material', 'color: #ff0000; emissive: #ff0000; emissiveIntensity: 0.2');
+            arModel.appendChild(testCube);
+
+            // Add the actual GLTF model
+            const gltfModel = document.createElement('a-entity');
+            gltfModel.setAttribute('gltf-model', './officeman_laptop_2.glb');
+            gltfModel.setAttribute('scale', '0.5 0.5 0.5');
+            gltfModel.setAttribute('position', '0 0.2 0');
+            gltfModel.setAttribute('rotation', '-90 0 0');
+            gltfModel.setAttribute('animation-mixer', '');
+
+            // Add error handling for GLTF loading
+            gltfModel.addEventListener('model-loaded', function () {
+                console.log('GLTF model loaded successfully!');
+            });
+
+            gltfModel.addEventListener('model-error', function (event) {
+                console.error('GLTF model failed to load:', event.detail);
+            });
+
+            arModel.appendChild(gltfModel);
+
+            // Add a platform/base
+            const platform = document.createElement('a-cylinder');
+            platform.setAttribute('color', '#00ff00');
+            platform.setAttribute('height', '0.02');
+            platform.setAttribute('radius', '0.4');
+            platform.setAttribute('position', '0 0 0');
+            platform.setAttribute('material', 'color: #00ff00; opacity: 0.7; transparent: true');
+            arModel.appendChild(platform);
+
+            // Add text label for debugging
+            const textLabel = document.createElement('a-text');
+            textLabel.setAttribute('value', '3D MODEL');
+            textLabel.setAttribute('color', '#ffffff');
+            textLabel.setAttribute('position', '0 1.5 0');
+            textLabel.setAttribute('align', 'center');
+            textLabel.setAttribute('scale', '2 2 2');
+            arModel.appendChild(textLabel);
+
+            scene.appendChild(arModel);
+            console.log('Dynamic AR model system initialized with debugging elements');
+        }
+
+        // Create dynamic AR marker at QR location
+        function createDynamicARMarker(location) {
+            if (!arModel) return;
+
+            // Calculate QR position in 3D space
+            const centerX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
+            const centerY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
+            const qrWidth = location.topRightCorner.x - location.topLeftCorner.x;
+
+            // Convert screen coordinates to world coordinates
+            const normalizedX = (centerX / canvas.width - 0.5) * 2;
+            const normalizedY = -(centerY / canvas.height - 0.5) * 2;
+
+            // Calculate distance for optimal visibility
+            const distance = Math.max(1, 200 / qrWidth);
+
+            // Position in 3D world - positioned for clear visibility
+            const worldX = normalizedX * 0.5;
+            const worldY = normalizedY * 0.5;
+            const worldZ = -distance;
+
+            // Position and show the 3D model
+            arModel.setAttribute('position', `${worldX} ${worldY} ${worldZ}`);
+            arModel.setAttribute('visible', 'true');
+
+            // Add rotation animation to make it more visible
+            if (!qrModelVisible) {
+                arModel.setAttribute('animation__rotate', {
+                    property: 'rotation',
+                    to: '0 360 0',
+                    dur: 6000,
+                    loop: true
+                });
+
+                // Add floating animation
+                arModel.setAttribute('animation__float', {
+                    property: 'position',
+                    to: `${worldX} ${worldY + 0.2} ${worldZ}`,
+                    dur: 3000,
+                    direction: 'alternate',
+                    loop: true
+                });
+            }
+
+            // Show overlay indicator
+            const overlay = document.getElementById('qr-overlay');
+            const videoRect = videoElement.getBoundingClientRect();
+            const scaleX = videoRect.width / videoElement.videoWidth;
+            const scaleY = videoRect.height / videoElement.videoHeight;
+
+            const screenX = (centerX * scaleX) + videoRect.left;
+            const screenY = (centerY * scaleY) + videoRect.top;
+
+            overlay.innerHTML = `
+                <div style="
+                    position: absolute;
+                    left: ${screenX}px;
+                    top: ${screenY - 40}px;
+                    background: rgba(0, 255, 0, 0.9);
+                    color: white;
+                    padding: 5px 10px;
+                    border-radius: 15px;
+                    font-size: 12px;
+                    transform: translateX(-50%);
+                    white-space: nowrap;
+                    border: 2px solid #ffffff;
+                ">🎯 3D Model Active</div>
+                <div style="
+                    position: absolute;
+                    left: ${screenX}px;
+                    top: ${screenY}px;
+                    width: 10px;
+                    height: 10px;
+                    background: rgba(255, 0, 0, 0.8);
+                    border-radius: 50%;
+                    transform: translate(-50%, -50%);
+                "></div>
+            `;
+
+            qrModelVisible = true;
+            console.log(`3D GLTF Model positioned at: ${worldX}, ${worldY}, ${worldZ}`);
         }
 
         // QR Code detection function
@@ -174,99 +308,20 @@
         }
 
         function showQRDetection(location) {
-            const overlay = document.getElementById('qr-overlay');
-
-            // Get video element position and scaling
-            const videoRect = videoElement.getBoundingClientRect();
-            const scaleX = videoRect.width / videoElement.videoWidth;
-            const scaleY = videoRect.height / videoElement.videoHeight;
-
-            // Calculate center of QR code with proper scaling
-            const rawCenterX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
-            const rawCenterY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
-            const rawQrWidth = location.topRightCorner.x - location.topLeftCorner.x;
-
-            // Apply scaling and video position offset
-            const centerX = (rawCenterX * scaleX) + videoRect.left;
-            const centerY = (rawCenterY * scaleY) + videoRect.top;
-            const qrWidth = rawQrWidth * scaleX;
-
-            // Show a large, animated 3D-looking model directly on the QR code
-            overlay.innerHTML = `
-                <!-- Large 3D Model Representation -->
-                <div style="
-                    position: absolute;
-                    left: ${centerX}px;
-                    top: ${centerY}px;
-                    width: ${qrWidth * 0.8}px;
-                    height: ${qrWidth * 0.8}px;
-                    background: linear-gradient(45deg, #ff0000, #ff6600, #ffff00, #00ff00, #0066ff, #6600ff);
-                    border: 4px solid #ffffff;
-                    border-radius: 15px;
-                    transform: translate(-50%, -50%);
-                    z-index: 1001;
-                    animation: spin3d 2s linear infinite, pulse 1s ease-in-out infinite alternate;
-                    box-shadow: 0 0 30px rgba(255, 0, 0, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.3);
-                "></div>
-                
-                <!-- 3D Model Text -->
-                <div style="
-                    position: absolute;
-                    left: ${centerX}px;
-                    top: ${centerY - qrWidth * 0.6}px;
-                    background: rgba(0, 0, 0, 0.9);
-                    color: #ffffff;
-                    padding: 8px 15px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: bold;
-                    transform: translateX(-50%);
-                    white-space: nowrap;
-                    border: 2px solid #00ff00;
-                    box-shadow: 0 0 15px rgba(0, 255, 0, 0.5);
-                ">🎯 3D MODEL ACTIVE 🎯</div>
-                
-                <!-- Office Man Icon -->
-                <div style="
-                    position: absolute;
-                    left: ${centerX}px;
-                    top: ${centerY}px;
-                    font-size: ${qrWidth * 0.3}px;
-                    transform: translate(-50%, -50%);
-                    z-index: 1002;
-                    animation: bounce 1s ease-in-out infinite alternate;
-                ">👨‍💼</div>
-            `;
-
-            // Add CSS animations if not already added
-            if (!document.getElementById('qr-animations')) {
-                const style = document.createElement('style');
-                style.id = 'qr-animations';
-                style.textContent = `
-                    @keyframes spin3d {
-                        0% { transform: translate(-50%, -50%) rotateY(0deg) rotateX(0deg); }
-                        25% { transform: translate(-50%, -50%) rotateY(90deg) rotateX(15deg); }
-                        50% { transform: translate(-50%, -50%) rotateY(180deg) rotateX(0deg); }
-                        75% { transform: translate(-50%, -50%) rotateY(270deg) rotateX(-15deg); }
-                        100% { transform: translate(-50%, -50%) rotateY(360deg) rotateX(0deg); }
-                    }
-                    
-                    @keyframes pulse {
-                        0% { box-shadow: 0 0 30px rgba(255, 0, 0, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.3); }
-                        100% { box-shadow: 0 0 50px rgba(255, 100, 0, 1), inset 0 0 30px rgba(255, 255, 255, 0.6); }
-                    }
-                    
-                    @keyframes bounce {
-                        0% { transform: translate(-50%, -50%) scale(1); }
-                        100% { transform: translate(-50%, -50%) scale(1.2); }
-                    }
-                `;
-                document.head.appendChild(style);
-            }
+            // Now we'll create a proper AR marker at the QR location
+            createDynamicARMarker(location);
         }
 
         function hideQRDetection() {
             document.getElementById('qr-overlay').innerHTML = '';
+
+            // Hide the 3D model when QR is lost
+            if (arModel && qrModelVisible) {
+                arModel.setAttribute('visible', 'false');
+                arModel.removeAttribute('animation__rotate');
+                arModel.removeAttribute('animation__float');
+                qrModelVisible = false;
+            }
         }
 
         function showARModelOnQR(location) {
