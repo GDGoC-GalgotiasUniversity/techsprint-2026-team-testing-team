@@ -3,14 +3,40 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js/aframe/build/aframe-ar.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
     <style>
-        body {
+        a-scene, .a-canvas, canvas {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 10 !important;
+            pointer-events: none !important;
+        }
+        /* Removed invalid 'visible' property. No effect in CSS. */
+        #dynamic-qr-3d-model, [gltf-model] {
+            /* No CSS visibility override needed for A-Frame entities */
+        }
+        * {
             margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
             font-family: Arial, sans-serif;
+            background: #000;
         }
 
         .arjs-loader {
@@ -53,43 +79,150 @@
             background: rgba(0, 255, 0, 0.1);
         }
 
-        /* Clean video and canvas positioning without viewport interference */
+        /* Full responsive video and canvas coverage */
         video {
-            position: absolute !important;
+            position: fixed !important;
             top: 0 !important;
             left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
             object-fit: cover !important;
+            object-position: center !important;
             z-index: -1 !important;
-            min-width: 100% !important;
-            min-height: 100% !important;
+            transform: none !important;
+            border: none !important;
+            outline: none !important;
         }
 
         canvas {
-            position: absolute !important;
+            position: fixed !important;
             top: 0 !important;
             left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
             object-fit: cover !important;
-            min-width: 100% !important;
-            min-height: 100% !important;
+            object-position: center !important;
+            border: none !important;
+            outline: none !important;
         }
 
         a-scene {
             position: fixed !important;
             top: 0 !important;
             left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
+            min-width: 100vw !important;
+            min-height: 100vh !important;
             overflow: hidden !important;
+            border: none !important;
+            outline: none !important;
+            background: transparent !important;
+            z-index: 2 !important;
         }
 
-        /* Mobile viewport optimization */
-        @media (max-width: 768px) {
+        /* Universal responsive coverage for all devices */
+        @media screen {
+            * {
+                box-sizing: border-box !important;
+            }
+
+            html,
             body {
+                width: 100vw !important;
+                height: 100vh !important;
+                margin: 0 !important;
+                padding: 0 !important;
                 overflow: hidden !important;
+                background: #000 !important;
+                position: relative !important;
+            }
+
+            video,
+            canvas,
+            a-scene {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                min-width: 100vw !important;
+                min-height: 100vh !important;
+                max-width: none !important;
+                max-height: none !important;
+                border: none !important;
+                outline: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            video {
+                object-fit: cover !important;
+                object-position: center center !important;
+                z-index: -1 !important;
+            }
+
+            canvas {
+                object-fit: cover !important;
+                object-position: center center !important;
+            }
+        }
+
+        /* Mobile phones - extra coverage insurance */
+        @media screen and (max-width: 480px) {
+            video {
+                transform: scale(1.05) !important;
+                /* Slight zoom to ensure no gaps */
+                transform-origin: center center !important;
+            }
+        }
+
+        /* Tablets and larger phones */
+        @media screen and (min-width: 481px) and (max-width: 1024px) {
+            video {
+                transform: scale(1.02) !important;
+                /* Minimal zoom for coverage */
+                transform-origin: center center !important;
+            }
+        }
+
+        /* Desktop and large screens */
+        @media screen and (min-width: 1025px) {
+            video {
+                transform: none !important;
+            }
+        }
+
+        /* Orientation-specific adjustments */
+        @media screen and (orientation: landscape) and (max-width: 1024px) {
+            video {
+                width: 100vw !important;
+                height: 100vh !important;
+                object-fit: cover !important;
+            }
+        }
+
+        @media screen and (orientation: portrait) and (max-width: 1024px) {
+            video {
+                width: 100vw !important;
+                height: 100vh !important;
+                object-fit: cover !important;
             }
         }
     </style>
@@ -117,8 +250,15 @@
     <!-- QR Detection Overlay -->
     <div id="qr-overlay"></div>
 
+    <!-- Manual Camera Activation Button -->
+    <button id="activate-camera"
+        style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10000; padding: 20px 40px; background: #28a745; color: white; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: bold; box-shadow: 0 4px 8px rgba(0,0,0,0.3);">
+        🎥 Start Camera
+    </button>
+
     <a-scene vr-mode-ui="enabled: false;" renderer="logarithmicDepthBuffer: true;" embedded
-        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 1280; sourceHeight: 960; displayWidth: 1280; displayHeight: 960;">
+        arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: 640; sourceHeight: 480; displayWidth: 640; displayHeight: 480; videoTexture: false;"
+        style="width: 100vw; height: 100vh; background: transparent;">
 
         <!-- Multiple barcode markers for different QR codes -->
         <a-marker type="barcode" value="0">
@@ -146,13 +286,41 @@
             </a-entity>
         </a-marker>
 
-        <!-- Pattern marker removed due to file issues -->
-
         <!-- Camera with AR.js built-in tracking -->
-        <a-entity id="ar-camera" camera="fov: 140; zoom: 0.2; near: 0.05; far: 2000"></a-entity>
+        <a-entity id="ar-camera" camera="fov: 80; near: 0.05; far: 2000"></a-entity>
     </a-scene>
 
     <script>
+        // Add global error handling for A-Frame systems
+        window.addEventListener('error', function (e) {
+            // Only suppress known A-Frame system errors, not AR.js marker material warnings
+            if (e.message && (e.message.includes('systems') || e.message.includes('Cannot read properties of null'))) {
+                console.log('A-Frame initialization error caught and handled:', e.message);
+                e.preventDefault();
+                return false;
+            }
+        });
+
+        // Patch AR.js to avoid setting 'markersAreaEnabled' on marker materials (prevents warning spam)
+        AFRAME.registerComponent('fix-arjs-marker-material', {
+            init: function () {
+                this.el.addEventListener('model-loaded', () => {
+                    const mesh = this.el.getObject3D('mesh');
+                    if (mesh) {
+                        mesh.traverse(child => {
+                            if (child.material && child.material.markersAreaEnabled !== undefined) {
+                                // Remove the property to prevent AR.js from trying to set it
+                                delete child.material.markersAreaEnabled;
+                            }
+                        });
+                    }
+                });
+            }
+        });
+
+
+        // Allow A-Frame and AR.js to initialize as normal so the AR scene and model rendering works
+
         let qrDetectionActive = false;
         let videoElement = null;
         let canvas = null;
@@ -250,67 +418,544 @@
             console.log(`Selected zoom level: ${deviceZoomLevel}`);
         }
 
+        // Update AR.js configuration based on screen size
+        function updateARJSConfiguration() {
+            const scene = document.querySelector('a-scene');
+            const screenWidth = window.innerWidth || document.documentElement.clientWidth;
+            const screenHeight = window.innerHeight || document.documentElement.clientHeight;
+
+            // Calculate optimal source dimensions based on screen size
+            const sourceWidth = Math.max(screenWidth, 1280);
+            const sourceHeight = Math.max(screenHeight, 960);
+
+            // Disabled to prevent systems errors
+            // if (scene) {
+            //     scene.setAttribute('arjs',
+            //         `trackingMethod: best; sourceType: webcam; debugUIEnabled: false; sourceWidth: ${sourceWidth}; sourceHeight: ${sourceHeight}; displayWidth: ${sourceWidth}; displayHeight: ${sourceHeight};`
+            //     );
+            //     console.log(`Updated AR.js configuration to: ${sourceWidth}x${sourceHeight}`);
+            // }
+            console.log('AR.js configuration skipped to prevent systems errors');
+        }
+
+        // Force full screen coverage for all devices
+        function forceFullScreenCoverage() {
+            const videoElement = document.querySelector('video');
+            const canvasElement = document.querySelector('canvas');
+            const sceneElement = document.querySelector('a-scene');
+
+            // Force all video elements to be visible and cover full screen
+            const videoElements = document.querySelectorAll('video');
+            console.log(`Found ${videoElements.length} video elements to configure`);
+
+            videoElements.forEach((video, index) => {
+                video.style.display = 'block';
+                video.style.visibility = 'visible';
+                video.style.opacity = '1';
+                video.style.position = 'fixed';
+                video.style.top = '0';
+                video.style.left = '0';
+                video.style.right = '0';
+                video.style.bottom = '0';
+                video.style.width = '100vw';
+                video.style.height = '100vh';
+                video.style.minWidth = '100vw';
+                video.style.minHeight = '100vh';
+                video.style.maxWidth = 'none';
+                video.style.maxHeight = 'none';
+                video.style.objectFit = 'cover';
+                video.style.objectPosition = 'center center';
+                video.style.zIndex = index === 0 ? '-1' : '-2'; // First video on top
+                video.style.border = 'none';
+                video.style.outline = 'none';
+                video.style.margin = '0';
+                video.style.padding = '0';
+
+                // Add slight scale for mobile to ensure no gaps
+                const isMobile = window.innerWidth <= 1024;
+                if (isMobile) {
+                    video.style.transform = 'scale(1.05)';
+                    video.style.transformOrigin = 'center center';
+                }
+
+                // Ensure video is playing
+                if (video.paused) {
+                    video.play().catch(e => console.log('Video play error:', e));
+                }
+            });
+}
+            // Force canvas full coverage
+          
+
+
+        // Monitor only our main camera video (not AR.js videos)
+        function monitorVideoElements() {
+            const mainVideo = document.getElementById('main-camera-video');
+
+            if (!mainVideo) {
+                console.log('Main camera video not found');
+                return;
+            }
+
+           
+            // Debug info
+            const isVisible = mainVideo.style.display !== 'none' &&
+                mainVideo.style.visibility !== 'hidden' &&
+                mainVideo.style.opacity !== '0';
+
+            console.log('Main video forced visible:', isVisible);
+
+            // Ensure main video stays playing
+            if (mainVideo.paused && mainVideo.readyState >= 2) {
+                mainVideo.play().catch(e => console.log('Main video play failed:', e));
+            }
+
+            // Remove any AR.js videos that might interfere
+            const otherVideos = document.querySelectorAll('video:not(#main-camera-video)');
+            otherVideos.forEach(video => {
+                console.log('Removing interfering AR.js video');
+                video.remove();
+            });
+        }
+
+        // Handle orientation changes properly without exponential growth
+        function handleOrientationChange() {
+            setTimeout(() => {
+                // Don't call forceFullScreenCoverage - it causes black screen
+                console.log('Orientation changed - video monitoring only');
+                monitorVideoElements(); // Just monitor video instead
+            }, 100);
+        }
+
         // Initialize QR detection with device-specific camera settings
         function initQRDetection() {
+            // Skip AR.js configuration update to avoid systems error
+            console.log('Initializing QR detection...');
+
             // Detect device and set appropriate zoom level
             detectDeviceAndSetZoom();
+
+            // Add orientation change handler
+            window.addEventListener('orientationchange', handleOrientationChange);
+            window.addEventListener('resize', handleOrientationChange);
+
+            // Start continuous monitoring for responsive coverage
+            setInterval(() => {
+                forceFullScreenCoverage();
+            }, 2000); // Check every 2 seconds
+
+            // Request camera permission first
+            requestCameraPermission();
+
+            // Request wide-angle camera
+            setTimeout(() => {
+                requestHighQualityCamera();
+            }, 1000);
+
+            setTimeout(() => {
+                // Try multiple ways to find the video element
+                videoElement = document.querySelector('video') ||
+                    document.querySelector('a-scene video') ||
+                    document.querySelector('[arjs] video');
+
+                // If still no video, wait for AR.js to create it
+                if (!videoElement) {
+                    console.log('Video element not found, waiting for AR.js...');
+                    setTimeout(() => {
+                        videoElement = document.querySelector('video');
+                        if (videoElement) {
+                            setupVideoElement();
+                        } else {
+                            console.log('Video element still not found after delay');
+                            // Force create video element if AR.js hasn't
+                            createFallbackVideo();
+                        }
+                    }, 2000);
+                    return;
+                }
+
+                setupVideoElement();
+            }, 3000);
+        }
+
+        // Setup video element with proper styling
+        function setupVideoElement() {
+            if (!videoElement) return;
+
+            console.log('Setting up video element:', videoElement);
+
+            // Detect if mobile device
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+            if (isMobile) {
+                // Mobile-specific video setup
+                videoElement.setAttribute('width', '640');
+                videoElement.setAttribute('height', '480');
+                videoElement.style.position = 'fixed';
+                videoElement.style.top = '0';
+                videoElement.style.left = '0';
+                videoElement.style.width = '100vw';
+                videoElement.style.height = '100vh';
+                videoElement.style.minWidth = '100vw';
+                videoElement.style.minHeight = '100vh';
+                videoElement.style.maxWidth = 'none';
+                videoElement.style.maxHeight = 'none';
+                videoElement.style.objectFit = 'cover';
+                videoElement.style.zIndex = '-1';
+                videoElement.style.transform = 'none';
+
+                // Force viewport meta tag for mobile
+                let viewport = document.querySelector('meta[name="viewport"]');
+                if (viewport) {
+                    viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                }
+
+                console.log('Applied mobile-specific video settings');
+            } else {
+                // Desktop setup
+                videoElement.setAttribute('width', '1920');
+                videoElement.setAttribute('height', '1080');
+                videoElement.style.objectFit = 'cover';
+                videoElement.style.width = '100vw';
+                videoElement.style.height = '100vh';
+                videoElement.style.maxWidth = '100vw';
+                videoElement.style.maxHeight = '100vh';
+                videoElement.style.position = 'fixed';
+                videoElement.style.top = '0';
+                videoElement.style.left = '0';
+                videoElement.style.zIndex = '-1';
+            }
+
+            // Apply device-specific camera settings via AR.js instead of CSS transforms
+            updateARCameraSettings(deviceZoomLevel);
+
+            // Don't force full screen coverage - it causes black screen
+            // Just rely on CSS and video monitoring instead
+
+            console.log(`Applied video settings for device: ${navigator.userAgent.substring(0, 50)}...`);
+
+            canvas = document.createElement('canvas');
+            context = canvas.getContext('2d', { willReadFrequently: true });
+
+            // Wait for A-Frame to be fully ready before creating AR model
+            setTimeout(() => {
+                createQRARModel();
+            }, 1000);
+
+            // Get camera entity reference
+            cameraEntity = document.querySelector('#ar-camera');
+
+            qrDetectionActive = true;
+            detectQR();
+        }
+
+        // Create fallback video if AR.js doesn't create one
+        function createFallbackVideo() {
+            console.log('Creating fallback video element');
+
+            // Create video element
+            videoElement = document.createElement('video');
+            videoElement.setAttribute('autoplay', 'true');
+            videoElement.setAttribute('muted', 'true');
+            videoElement.setAttribute('playsinline', 'true');
+            videoElement.style.position = 'fixed';
+            videoElement.style.top = '0';
+            videoElement.style.left = '0';
+            videoElement.style.width = '100vw';
+            videoElement.style.height = '100vh';
+            videoElement.style.objectFit = 'cover';
+            videoElement.style.zIndex = '-1';
+
+            // Add to DOM
+            document.body.appendChild(videoElement);
+
+            // Request camera access
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 640 },
+                        height: { ideal: 480 }
+                    }
+                })
+                    .then(function (stream) {
+                        videoElement.srcObject = stream;
+                        videoElement.play();
+                        console.log('Fallback video stream started');
+                        setupVideoElement();
+                    })
+                    .catch(function (error) {
+                        console.error('Error accessing camera for fallback video:', error);
+                    });
+            }
+        }
+
+        // Enhanced force full screen coverage
+        function forceVideoVisibility() {
+            const videos = document.querySelectorAll('video');
+            console.log(`Found ${videos.length} video elements`);
+
+            videos.forEach((video, index) => {
+                console.log(`Configuring video ${index}:`, video);
+                video.style.display = 'block';
+                video.style.visibility = 'visible';
+                video.style.opacity = '1';
+                video.style.position = 'fixed';
+                video.style.top = '0';
+                video.style.left = '0';
+                video.style.width = '100vw';
+                video.style.height = '100vh';
+                video.style.objectFit = 'cover';
+                video.style.zIndex = index === 0 ? '-1' : '-2'; // First video on top
+                video.style.transform = 'none';
+
+                // Ensure video is playing
+                if (video.paused) {
+                    video.play().catch(e => console.log('Video play failed:', e));
+                }
+            });
+        }
+
+        // Update the existing initQRDetection function
+        function initQRDetection() {
+            // Update AR.js configuration for current screen
+            updateARJSConfiguration();
+
+            // Detect device and set appropriate zoom level
+            detectDeviceAndSetZoom();
+
+            // Add orientation change handler
+            window.addEventListener('orientationchange', handleOrientationChange);
+            window.addEventListener('resize', handleOrientationChange);
+
+            // Start monitoring with higher frequency to keep video visible
+            setInterval(() => {
+                monitorVideoElements(); // Keep video visible during QR detection
+                // Don't call forceFullScreenCoverage - it causes black screen
+            }, 500); // Check every 500ms to ensure video stays visible
 
             // Request wide-angle camera first
             requestHighQualityCamera();
 
-            setTimeout(() => {
-                videoElement = document.querySelector('video');
-                if (videoElement) {
-                    // Force full screen video coverage
-                    videoElement.setAttribute('width', '1280');
-                    videoElement.setAttribute('height', '960');
+            // Start video detection process
+            if (videoElement) {
+                // Detect if mobile device
+                const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+                if (isMobile) {
+                    // Mobile-specific video setup
+                    videoElement.setAttribute('width', '640');
+                    videoElement.setAttribute('height', '480');
+                    videoElement.style.position = 'fixed';
+                    videoElement.style.top = '0';
+                    videoElement.style.left = '0';
+                    videoElement.style.width = '100vw';
+                    videoElement.style.height = '100vh';
+                    videoElement.style.minWidth = '100vw';
+                    videoElement.style.minHeight = '100vh';
+                    videoElement.style.maxWidth = 'none';
+                    videoElement.style.maxHeight = 'none';
+                    videoElement.style.objectFit = 'cover';
+                    videoElement.style.zIndex = '-1';
+                    videoElement.style.transform = 'none';
+
+                    // Force viewport meta tag for mobile
+                    let viewport = document.querySelector('meta[name="viewport"]');
+                    if (viewport) {
+                        viewport.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                    }
+
+                    console.log('Applied mobile-specific video settings');
+                } else {
+                    // Desktop setup
+                    videoElement.setAttribute('width', '1920');
+                    videoElement.setAttribute('height', '1080');
                     videoElement.style.objectFit = 'cover';
                     videoElement.style.width = '100vw';
                     videoElement.style.height = '100vh';
-                    videoElement.style.minWidth = '100%';
-                    videoElement.style.minHeight = '100%';
-
-                    // Apply device-specific camera settings via AR.js instead of CSS transforms
-                    updateARCameraSettings(deviceZoomLevel);
-
-                    console.log(`Applied full screen camera settings for device: ${navigator.userAgent.substring(0, 50)}...`);
-
-                    canvas = document.createElement('canvas');
-                    context = canvas.getContext('2d', { willReadFrequently: true });
-
-                    // Create AR model for QR detection
-                    createQRARModel();
-
-                    // Get camera entity reference
-                    cameraEntity = document.querySelector('#ar-camera');
-
-                    qrDetectionActive = true;
-                    detectQR();
+                    videoElement.style.maxWidth = '100vw';
+                    videoElement.style.maxHeight = '100vh';
+                    videoElement.style.position = 'fixed';
+                    videoElement.style.top = '0';
+                    videoElement.style.left = '0';
+                    videoElement.style.zIndex = '-1';
                 }
-            }, 3000);
-        }
+
+                // Apply device-specific camera settings via AR.js instead of CSS transforms
+                updateARCameraSettings(deviceZoomLevel);
+
+                // Don't force full screen coverage - it causes black screen
+                // Video is already properly styled with CSS
+
+                console.log(`Applied video settings for device: ${navigator.userAgent.substring(0, 50)}...`);
+
+                canvas = document.createElement('canvas');
+                context = canvas.getContext('2d', { willReadFrequently: true });
+
+                // Wait for A-Frame to be fully ready before creating AR model
+                setTimeout(() => {
+                    createQRARModel();
+                }, 1000);
+
+                // Get camera entity reference
+                cameraEntity = document.querySelector('#ar-camera');
+
+                qrDetectionActive = true;
+                detectQR();
+            }
+        } 3000
 
         // Update AR camera settings without interfering with viewport
         function updateARCameraSettings(zoomLevel) {
-            const scene = document.querySelector('a-scene');
-            const camera = document.querySelector('#ar-camera');
+            try {
+                const scene = document.querySelector('a-scene');
+                const camera = document.querySelector('#ar-camera');
 
-            if (camera) {
-                // Calculate appropriate FOV based on zoom level (inverse relationship)
-                const baseFOV = 80; // Standard FOV
-                const adjustedFOV = baseFOV + (zoomLevel * 200); // Higher zoom = wider FOV
+                // Disabled to prevent systems errors
+                // if (camera && camera.setAttribute) {
+                //     // Calculate appropriate FOV based on zoom level (inverse relationship)
+                //     const baseFOV = 80; // Standard FOV
+                //     const adjustedFOV = baseFOV + (zoomLevel * 200); // Higher zoom = wider FOV
 
-                // Update camera FOV instead of using CSS transforms
-                camera.setAttribute('camera', `fov: ${adjustedFOV}; near: 0.05; far: 2000`);
+                //     // Update camera FOV instead of using CSS transforms
+                //     camera.setAttribute('camera', `fov: ${adjustedFOV}; near: 0.05; far: 2000`);
 
-                console.log(`Updated camera FOV to ${adjustedFOV}° for zoom level ${zoomLevel}`);
+                //     console.log(`Updated camera FOV to ${adjustedFOV}° for zoom level ${zoomLevel}`);
+                // } else {
+                //     console.log('Camera element not ready yet');
+                // }
+                console.log('Camera FOV update skipped to prevent systems errors');
+
+                // Update AR.js source settings for better tracking
+                if (scene && scene.getAttribute && scene.setAttribute) {
+                    const currentArjs = scene.getAttribute('arjs');
+                    if (currentArjs && typeof currentArjs === 'string') {
+                        const updatedArjs = currentArjs.replace(/sourceWidth: \d+/, `sourceWidth: ${Math.floor(640 * (1 + zoomLevel))}`);
+                        scene.setAttribute('arjs', updatedArjs);
+                    }
+                } else {
+                    console.log('Scene element not ready yet');
+                }
+            } catch (error) {
+                console.log('Error updating AR camera settings:', error);
             }
+        }
 
-            // Update AR.js source settings for better tracking
-            if (scene) {
-                const currentArjs = scene.getAttribute('arjs');
-                const updatedArjs = currentArjs.replace(/sourceWidth: \d+/, `sourceWidth: ${Math.floor(640 * (1 + zoomLevel))}`);
-                scene.setAttribute('arjs', updatedArjs);
+        // Create and display camera video directly (bypassing AR.js video creation)
+        function requestCameraPermission() {
+            console.log('Creating direct camera video...');
+
+            // Remove ALL existing videos to prevent conflicts
+            const existingVideos = document.querySelectorAll('video');
+            existingVideos.forEach(video => {
+                console.log('Removing existing video element to prevent conflicts');
+                video.remove();
+            });
+
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({
+                    video: {
+                        facingMode: 'environment',
+                        width: { ideal: 1280, min: 640 },
+                        height: { ideal: 720, min: 480 }
+                    }
+                })
+                    .then(function (stream) {
+                        console.log('Camera stream obtained successfully');
+
+                        // Create new video element
+                        const video = document.createElement('video');
+                        video.id = 'main-camera-video';
+                        video.setAttribute('autoplay', 'true');
+                        video.setAttribute('muted', 'true');
+                        video.setAttribute('playsinline', 'true');
+
+                        // Assign stream immediately
+                        video.srcObject = stream;
+
+                        // Style for full screen (highest priority) - make video visible
+                        video.style.cssText = `
+                        position: fixed !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100vw !important;
+                        height: 100vh !important;
+                        object-fit: cover !important;
+                        z-index: 1 !important;
+                        display: block !important;
+                        visibility: visible !important;
+                        opacity: 1 !important;
+                        background: black !important;
+                        pointer-events: none !important;
+                        border: 5px solid red !important;
+                    `;
+
+                        // Add to body as first element
+                        document.body.insertBefore(video, document.body.firstChild);
+
+                        // Play video and handle success
+                        video.play().then(() => {
+                            console.log('✅ Video playing successfully!');
+                            console.log('Video dimensions:', video.videoWidth, 'x', video.videoHeight);
+                            videoElement = video;
+
+                            // Hide the activate button
+                            const button = document.getElementById('activate-camera');
+                            if (button) button.style.display = 'none';
+
+                            // Add debug overlay to confirm video is working
+                            const debugDiv = document.createElement('div');
+                            debugDiv.innerHTML = '📹 Camera Active - Video Playing!';
+                            debugDiv.style.cssText = `
+                                position: fixed;
+                                top: 20px;
+                                left: 20px;
+                                background: rgba(0,255,0,0.8);
+                                color: white;
+                                padding: 10px;
+                                border-radius: 5px;
+                                z-index: 10000;
+                                font-weight: bold;
+                            `;
+                            document.body.appendChild(debugDiv);
+
+                            // Remove debug overlay after 3 seconds
+                            setTimeout(() => {
+                                if (debugDiv.parentNode) {
+                                    debugDiv.parentNode.removeChild(debugDiv);
+                                }
+                            }, 3000);
+
+                            // Start QR detection
+                            // Re-enable QR detection now that camera is stable
+                            setTimeout(() => {
+                                if (!qrDetectionActive) {
+                                    console.log('Starting QR detection...');
+                                    qrDetectionActive = true;
+                                    detectQR();
+                                }
+                            }, 2000); // Wait 2 seconds for camera to stabilize
+
+                        }).catch(error => {
+                            console.error('❌ Video play failed:', error);
+                        });
+
+                        // Add event listeners for debugging
+                        video.addEventListener('loadedmetadata', () => {
+                            console.log('Video metadata loaded:', video.videoWidth, 'x', video.videoHeight);
+                        });
+
+                        video.addEventListener('canplay', () => {
+                            console.log('Video can play');
+                        });
+                    })
+                    .catch(function (error) {
+                        console.error('❌ Camera access failed:', error);
+                        alert('Camera access denied. Please allow camera access and click "Activate Camera" button.');
+                    });
+            } else {
+                console.error('getUserMedia not supported');
+                alert('Your browser does not support camera access.');
             }
         }
 
@@ -355,26 +1000,47 @@
 
         // Create clean AR model system (5% scale, QR as base)
         function createQRARModel() {
+            // Wait for A-Frame scene to be fully initialized
             const scene = document.querySelector('a-scene');
+
+            if (!scene) {
+                console.log('A-Frame scene not ready, retrying in 500ms...');
+                setTimeout(createQRARModel, 500);
+                return;
+            }
+
+            // Wait for scene to be loaded
+            if (!scene.hasLoaded) {
+                scene.addEventListener('loaded', createQRARModel);
+                return;
+            }
 
             // Create a dynamic marker that we'll position based on QR detection
             arModel = document.createElement('a-entity');
             arModel.setAttribute('id', 'dynamic-qr-3d-model');
             arModel.setAttribute('visible', 'false');
 
+
             // Add the actual GLTF model at 5% scale with correct orientation
             const gltfModel = document.createElement('a-entity');
-            gltfModel.setAttribute('gltf-model', './officeman_laptop_2.glb');
+            // Use absolute path for GLB to avoid loading issues
+            const glbPath = window.location.origin + '/officeman_laptop_2.glb';
+            gltfModel.setAttribute('gltf-model', glbPath);
             gltfModel.setAttribute('scale', '0.05 0.05 0.05'); // 5% scale as requested
             gltfModel.setAttribute('position', '0 0 0'); // Bottom sits on QR code (Y=0)
-            gltfModel.setAttribute('rotation', '0 0 180'); // Try Z-axis rotation for top view
+            gltfModel.setAttribute('rotation', '0 0 0'); // Correct orientation for top view
             // Enhanced animation-mixer for video textures and complex animations
             gltfModel.setAttribute('animation-mixer', 'clip: *; loop: repeat; timeScale: 1; crossFadeDuration: 0');
 
+            // Add error handling for GLTF loading
+            gltfModel.addEventListener('model-error', function (event) {
+                console.error('GLTF model failed to load:', event.detail);
+                alert('Failed to load 3D model. Check the file path and server.');
+            });
+
             // Add error handling for GLTF loading and video texture setup
             gltfModel.addEventListener('model-loaded', function () {
-                console.log('GLTF model loaded - setting up video textures and animations');
-
+                console.log('GLTF model loaded and added to scene!');
                 setTimeout(() => {
                     const object3D = gltfModel.getObject3D('mesh');
                     if (object3D) {
@@ -391,8 +1057,16 @@
 
             arModel.appendChild(gltfModel);
 
-            scene.appendChild(arModel);
-            console.log('Clean AR model system initialized - 5% scale, QR as base');
+            // Append to scene only after scene is fully loaded
+            if (!scene.hasLoaded) {
+                scene.addEventListener('loaded', () => {
+                    scene.appendChild(arModel);
+                    console.log('AR model added to scene after scene loaded');
+                });
+            } else {
+                scene.appendChild(arModel);
+                console.log('Clean AR model system initialized - 5% scale, QR as base');
+            }
         }
 
         // Setup video textures in GLB model
@@ -688,46 +1362,14 @@
         // Place model on QR location (persistent until next QR detection)
         function createDynamicARMarker(location) {
             if (!arModel) return;
-
-            // Only reposition if model is not already fixed in place
-            if (!modelFixed) {
-                // Calculate QR center position
-                const centerX = (location.topLeftCorner.x + location.topRightCorner.x) / 2;
-                const centerY = (location.topLeftCorner.y + location.bottomLeftCorner.y) / 2;
-                const qrWidth = location.topRightCorner.x - location.topLeftCorner.x;
-
-                // Convert screen coordinates to world coordinates
-                const normalizedX = (centerX / canvas.width - 0.5) * 2;
-                const normalizedY = -(centerY / canvas.height - 0.5) * 2;
-
-                // Calculate distance for optimal visibility
-                const distance = Math.max(1.2, 180 / qrWidth);
-
-                // Position in 3D world - QR code as base
-                const worldX = normalizedX * 0.4;
-                const worldY = normalizedY * 0.4;
-                const worldZ = -distance;
-
-                // Store world position for tracking
-                arModel.worldPosition = { x: worldX, y: worldY, z: worldZ };
-
-                // Position and show the 3D model (bottom sits on QR)
-                arModel.setAttribute('position', `${worldX} ${worldY} ${worldZ}`);
-                arModel.setAttribute('visible', 'true');
-
-                // Mark model as fixed in place
-                modelFixed = true;
-                qrModelVisible = true;
-
-                // Start animation update loop for video textures
-                startAnimationUpdateLoop();
-
-                // Enable marker-based AR tracking (no gyroscope needed)
-                enableMarkerARTracking();
-
-                console.log(`3D Model fixed at QR location: ${worldX}, ${worldY}, ${worldZ}`);
-            }
-
+            // DEBUG: Force model to a fixed visible position and scale
+            arModel.setAttribute('position', '0 0 -2');
+            arModel.setAttribute('scale', '0.5 0.5 0.5');
+            arModel.setAttribute('visible', 'true');
+            arModel.worldPosition = { x: 0, y: 0, z: -2 };
+            qrModelVisible = true;
+            startAnimationUpdateLoop();
+            console.log('DEBUG: 3D Model forced to position 0 0 -2, scale 0.5');
             // Clear any overlay elements (no dot, no text)
             document.getElementById('qr-overlay').innerHTML = '';
         }
@@ -740,14 +1382,46 @@
             }
 
             try {
+                // Ensure canvas exists and is visible for debugging
+                if (!canvas) {
+                    canvas = document.createElement('canvas');
+                    context = canvas.getContext('2d', { willReadFrequently: true });
+                    canvas.id = 'qr-debug-canvas';
+                    canvas.style.position = 'fixed';
+                    canvas.style.top = '0';
+                    canvas.style.left = '0';
+                    canvas.style.width = '320px';
+                    canvas.style.height = '240px';
+                    canvas.style.zIndex = '10001';
+                    canvas.style.border = '2px solid red';
+                    canvas.style.background = 'rgba(0,0,0,0.2)';
+                    document.body.appendChild(canvas);
+                    console.log('Created visible canvas for QR detection');
+                }
+
                 // Limit canvas size for memory efficiency
                 const maxWidth = 640;
                 const maxHeight = 480;
 
-                canvas.width = Math.min(videoElement.videoWidth, maxWidth);
-                canvas.height = Math.min(videoElement.videoHeight, maxHeight);
+                // Ensure video has dimensions before setting canvas size
+                if (videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
+                    canvas.width = Math.min(videoElement.videoWidth, maxWidth);
+                    canvas.height = Math.min(videoElement.videoHeight, maxHeight);
+                } else {
+                    // Use default dimensions if video dimensions not available
+                    canvas.width = maxWidth;
+                    canvas.height = maxHeight;
+                }
 
                 if (canvas.width > 0 && canvas.height > 0) {
+                    // Ensure video stays visible before drawing to canvas
+                    const mainVideo = document.getElementById('main-camera-video');
+                    if (mainVideo) {
+                        mainVideo.style.display = 'block';
+                        mainVideo.style.visibility = 'visible';
+                        mainVideo.style.opacity = '1';
+                    }
+
                     context.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
 
                     // Only process every other frame to reduce memory usage
@@ -790,10 +1464,20 @@
         }
 
         function showARModelOnQR(location) {
-            // Reset model position when new QR is detected
-            if (modelFixed) {
-                modelFixed = false; // Allow repositioning for new QR detection
-                console.log('New QR detected - repositioning model');
+            // Always allow repositioning and force model visible on every QR detection
+            modelFixed = false;
+            if (arModel) {
+                arModel.setAttribute('visible', 'true');
+                if (arModel.object3D) arModel.object3D.visible = true;
+                // Also force the scene canvas to be visible and on top
+                const scene = document.querySelector('a-scene');
+                if (scene && scene.canvas) {
+                    scene.canvas.style.zIndex = '10';
+                    scene.canvas.style.display = 'block';
+                    scene.canvas.style.visibility = 'visible';
+                    scene.canvas.style.opacity = '1';
+                }
+                console.log('QR detected - model forced visible and will be repositioned');
             }
         }
 
@@ -812,12 +1496,28 @@
                 if (loader) {
                     loader.style.display = 'none';
                 }
-                initQRDetection();
+                // Don't call initQRDetection here - it's already called by the main DOMContentLoaded handler
+                // But do force video visibility after loader is hidden
+                setTimeout(() => {
+                    monitorVideoElements();
+                    // Don't call forceFullScreenCoverage - it causes black screen
+                }, 500);
             }, 2000);
         });
 
-        // Add marker found/lost events
+        // Add manual camera activation button
         document.addEventListener('DOMContentLoaded', function () {
+            const activateButton = document.getElementById('activate-camera');
+            if (activateButton) {
+                activateButton.addEventListener('click', function () {
+                    console.log('Manual camera activation clicked');
+                    requestCameraPermission();
+                    // Hide button after click
+                    activateButton.style.display = 'none';
+                });
+            }
+
+            // Add marker found/lost events
             setTimeout(() => {
                 const markers = document.querySelectorAll('a-marker');
                 markers.forEach(marker => {
