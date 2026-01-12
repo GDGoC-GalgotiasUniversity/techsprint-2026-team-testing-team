@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AR QR Model Overlay</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }
+    
+    #video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+      background: #222;
+      display: block;
+    }
+    #three-canvas, #debug-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 2;
+      pointer-events: none;
+      display: block;
+    }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      background: rgba(0,0,0,0.5);
+      padding: 8px 16px;
+      border-radius: 8px;
+      z-index: 3;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="three-canvas"></canvas>
+  <canvas id="debug-canvas"></canvas>
+  <div id="info">Point your camera at the QR code</div>
+  <button id="enable-motion" style="position:absolute;top:10px;right:10px;z-index:4;padding:8px 12px;border-radius:8px;border:none;background:#0b5;color:#fff;cursor:pointer;">Enable motion</button>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
+  <script type="module">
+  import * as THREE from './libs/three.module.js';
+  import { GLTFLoader } from './libs/GLTFLoader.js';
+
+    const video = document.getElementById('video');
+  const threeCanvas = document.getElementById('three-canvas');
+  const debugCanvas = document.getElementById('debug-canvas');
+  let renderer, scene, camera, mixer, model, modelLoaded = false;
+  let qrLocation = null;
+  let animationPlaying = false;
+  let lastDetectionTs = 0;
+  const PIN_TIMEOUT_MS = 2000; // keep visible 2s after loss to avoid flicker
+  // Stable, unscaled model bounds computed once at load
+  let baseSize = null;
+  let baseCenter = null;
+  const SCALE_MULTIPLIER = 2; // reduced overall size multiplier
+  // Device orientation (for AR-like rotation)
+  let deviceYawRad = 0; // radians
+  let orientationEnabled = false;
+  let screenAngleRad = 0;
+  let lastQrX = 0, lastQrY = 0; // remember last QR center for reprojection while pinned
+
+    // Camera setup
+    function startCamera() {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+        .then(stream => {
+          video.srcObject = stream;
+          video.style.objectFit = 'cover'; // Ensure video fills viewport
+          video.onloadedmetadata = () => {
+            resizeElements();
+            setupThree();
+            animate();
+          };
+        })
+        .catch(err => {
+          document.getElementById('info').textContent = 'Camera access denied or not available.';
+        });
+    }
+
+    function resizeElements() {
+  const w = video.videoWidth || window.innerWidth;
+  const h = video.videoHeight || window.innerHeight;
+  video.width = w;
+  video.height = h;
+  threeCanvas.width = w;
+  threeCanvas.height = h;
+  debugCanvas.width = w;
+  debugCanvas.height = h;
+  // Let CSS handle display scaling for responsiveness
+      debugCanvas.style.position = 'absolute';
+      debugCanvas.style.top = '0';
+      debugCanvas.style.left = '0';
+      debugCanvas.style.pointerEvents = 'none';
+      debugCanvas.style.zIndex = '10';
+      if (camera) {
+        camera.left = 0;
+        camera.right = w;
+        camera.top = 0;
+        camera.bottom = h;
+        camera.updateProjectionMatrix();
+      }
+      if (renderer) {
+        renderer.setSize(w, h, false);
+      }
+    }
+
+    window.addEventListener('resize', resizeElements);
+    startCamera();
+    // Normalize screen orientation angle (handles mobile rotation)
+    const updateScreenAngle = () => {
+      const ang = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : (typeof window.orientation === 'number' ? window.orientation : 0);
+      screenAngleRad = (ang || 0) * Math.PI / 180;
+    };
+    updateScreenAngle();
+    window.addEventListener('orientationchange', updateScreenAngle);
+
+    // Enable device orientation when user taps the button (iOS permission)
+    const enableOrientation = async () => {
+      if (orientationEnabled) return;
+      try {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const resp = await DeviceOrientationEvent.requestPermission();
+          if (resp !== 'granted') return;
+        }
+        const handler = e => {
+          const alpha = (e && typeof e.alpha === 'number') ? e.alpha : 0; // degrees
+          // Subtract screen rotation so yaw feels consistent with phone turning
+          const yawDeg = (alpha - (screen.orientation && screen.orientation.angle ? screen.orientation.angle : (window.orientation || 0)) + 360) % 360;
+          deviceYawRad = yawDeg * Math.PI / 180;
+        };
+        window.addEventListener('deviceorientationabsolute', handler, { passive: true });
+        window.addEventListener('deviceorientation', handler, { passive: true });
+        orientationEnabled = true;
+        const btn = document.getElementById('enable-motion');
+        if (btn) btn.style.display = 'none';
+      } catch {}
+    };
+    const btn = document.getElementById('enable-motion');
+    if (btn) btn.addEventListener('click', enableOrientation, { once: true });
+
+    // Three.js setup
+    function setupThree() {
+  renderer = new THREE.WebGLRenderer({ canvas: threeCanvas, alpha: true });
+  renderer.setSize(threeCanvas.width, threeCanvas.height, false);
+  renderer.setClearColor(0x000000, 0);
+  if ('outputColorSpace' in renderer) {
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+  } else if ('outputEncoding' in renderer) {
+    renderer.outputEncoding = THREE.sRGBEncoding;
+  }
+  if ('toneMapping' in renderer) {
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+  }
+      scene = new THREE.Scene();
+  // Use orthographic camera for 2D overlay
+  camera = new THREE.OrthographicCamera(0, threeCanvas.width, threeCanvas.height, 0, -1000, 1000);
+  camera.position.set(0, 0, 10);
+      // Add lights
+      const light = new THREE.DirectionalLight(0xffffff, 1.0);
+      light.position.set(0, 5, 10);
+      scene.add(light);
+      const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+      scene.add(ambient);
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.5);
+      hemi.position.set(0, 1, 0);
+      scene.add(hemi);
+      // Load model
+      const loader = new GLTFLoader();
+      loader.load('officeman_laptop_2.glb', gltf => {
+        if (modelLoaded && model) {
+          // Ensure only one instance exists
+          scene.remove(model);
+          model = null;
+          modelLoaded = false;
+        }
+        model = gltf.scene;
+        // Compute stable base bounds once (in model space)
+        const box = new THREE.Box3().setFromObject(model);
+        baseSize = new THREE.Vector3();
+        box.getSize(baseSize);
+        baseCenter = new THREE.Vector3();
+        box.getCenter(baseCenter);
+        scene.add(model);
+        modelLoaded = true;
+        model.visible = false;
+        document.getElementById('info').textContent = '3D model loaded! Point to a QR.';
+        // Debug: log position and scale
+        console.log('Model position:', model.position);
+        console.log('Model scale:', model.scale);
+        // Animation
+        if (gltf.animations.length > 0) {
+          mixer = new THREE.AnimationMixer(model);
+          mixer.clipAction(gltf.animations[0]).play();
+          animationPlaying = true;
+        }
+      }, undefined, err => {
+        document.getElementById('info').textContent = 'Failed to load 3D model.';
+      });
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (modelLoaded && model) {
+        renderer.render(scene, camera);
+      }
+      // QR detection with pin timeout
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        resizeElements();
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code && modelLoaded && model) {
+          qrLocation = code.location;
+          document.getElementById('info').textContent = 'QR code detected!';
+          lastDetectionTs = performance.now();
+          // Position 3D model on QR code
+          // Calculate QR center
+          const qrCenterX = (qrLocation.topLeftCorner.x + qrLocation.bottomRightCorner.x) / 2;
+          const qrCenterY = (qrLocation.topLeftCorner.y + qrLocation.bottomRightCorner.y) / 2;
+          // Calculate QR size
+          const qrWidth = Math.abs(qrLocation.topRightCorner.x - qrLocation.topLeftCorner.x);
+          const qrHeight = Math.abs(qrLocation.bottomLeftCorner.y - qrLocation.topLeftCorner.y);
+          // Use stable base bounds for scale and centering
+          const sizeX = (baseSize && isFinite(baseSize.x) && baseSize.x > 0) ? baseSize.x : 1;
+          const sizeY = (baseSize && isFinite(baseSize.y) && baseSize.y > 0) ? baseSize.y : 1;
+          const scaleX = qrWidth / sizeX;
+          const scaleY = qrHeight / sizeY;
+          const scale = Math.min(scaleX, scaleY) * SCALE_MULTIPLIER;
+          model.scale.setScalar(scale);
+          // Top view with phone yaw applied around Z
+          model.rotation.set(Math.PI / 2, 0, deviceYawRad);
+          // Recompute bbox after scale+rotation to align exact visual center to QR
+          model.position.set(0, 0, 0);
+          model.updateWorldMatrix(true, true);
+          const placedBox = new THREE.Box3().setFromObject(model);
+          const placedCenter = new THREE.Vector3();
+          placedBox.getCenter(placedCenter);
+          model.position.set(qrCenterX - placedCenter.x, qrCenterY - placedCenter.y, 0);
+          model.visible = true;
+          lastQrX = qrCenterX; lastQrY = qrCenterY;
+        }
+        else if (modelLoaded && model) {
+          // keep visible briefly after loss to avoid flicker
+          const age = performance.now() - lastDetectionTs;
+          model.visible = age < PIN_TIMEOUT_MS;
+          // If still visible and orientation enabled, keep rotating and recentering around last QR
+          if (model.visible && orientationEnabled) {
+            model.rotation.set(Math.PI / 2, 0, deviceYawRad);
+            model.updateWorldMatrix(true, true);
+            const box = new THREE.Box3().setFromObject(model);
+            const c = new THREE.Vector3();
+            box.getCenter(c);
+            model.position.set(lastQrX - c.x, lastQrY - c.y, 0);
+          }
+        }
+      }
+      if (animationPlaying && mixer) {
+        mixer.update(0.016);
+      }
+    } // <-- Add this closing brace for animate()
+
+  </script>
+</body>
+</html>
